@@ -37,6 +37,7 @@ $string['statusbar_portal'] = 'Portal';
 $string['setting_cpportalurl'] = 'Control-plane portal URL';
 $string['setting_cpportalurl_desc'] = 'Public URL of the Nucleus portal (not the API). Shown as the "Portal" link in the Moodle status bar. Leave empty to hide the link.';
 $string['huberror'] = 'Federation hub call failed: {$a}';
+$string['mode_both'] = 'Content + identity federation (Modes A + B)';
 $string['mode_content'] = 'Content federation (Mode A)';
 $string['mode_identity'] = 'Identity federation (Mode B)';
 $string['pluginname'] = 'Nucleus federation (common)';

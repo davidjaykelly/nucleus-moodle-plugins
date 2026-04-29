@@ -164,13 +164,11 @@ class registry {
     public static function require_keys(array $dto, array $keys, string $label): void {
         foreach ($keys as $k) {
             if (!array_key_exists($k, $dto) || $dto[$k] === null || $dto[$k] === '') {
-                throw new \moodle_exception(
-                    'pullfailed',
-                    'local_nucleusspoke',
-                    '',
-                    null,
-                    "{$label} DTO missing '{$k}'"
-                );
+                // Same fix as the other pullfailed throw sites — pass
+                // the message as $a so Moodle renders the lang string
+                // with the actual reason instead of literal `{$a}`.
+                $msg = "{$label} DTO missing '{$k}'";
+                throw new \moodle_exception('pullfailed', 'local_nucleusspoke', '', $msg, $msg);
             }
         }
     }

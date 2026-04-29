@@ -50,6 +50,12 @@ if ($hassiteconfig) {
         get_string('setting_identity_desc', 'local_nucleuscommon')
     ));
 
+    // Mode select. The `both` option mirrors what the federation
+    // settings allow control-plane side and what set_federation_mode
+    // accepts as a valid value. Without it here, a tenant provisioned
+    // with mode=both renders the admin page with an "Invalid current
+    // value" warning even though the value is correct — the select
+    // just had a stale (Mode A | Mode B) shape.
     $settings->add(new admin_setting_configselect(
         'local_nucleuscommon/federationmode',
         get_string('setting_mode', 'local_nucleuscommon'),
@@ -58,6 +64,7 @@ if ($hassiteconfig) {
         [
             'content'  => get_string('mode_content', 'local_nucleuscommon'),
             'identity' => get_string('mode_identity', 'local_nucleuscommon'),
+            'both'     => get_string('mode_both', 'local_nucleuscommon'),
         ]
     ));
 

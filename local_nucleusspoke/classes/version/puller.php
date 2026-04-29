@@ -171,11 +171,15 @@ class puller {
     private static function download_snapshot(\stdClass $versionrow): string {
         $mbzpath = tempnam(sys_get_temp_dir(), 'nucleus-snapshot-');
         if ($mbzpath === false) {
+            // Pass the message as $a so Moodle substitutes it into
+            // the {$a} placeholder in the `pullfailed` lang string.
+            // Keep the same text in $debuginfo for log/dev-mode
+            // display — same content, two surfaces.
             throw new \moodle_exception(
                 'pullfailed',
                 'local_nucleusspoke',
                 '',
-                null,
+                'could not allocate temp file for snapshot',
                 'could not allocate temp file for snapshot'
             );
         }
@@ -217,13 +221,8 @@ class puller {
         check_dir_exists($targetdir, true, true);
         $packer = get_file_packer('application/vnd.moodle.backup');
         if (!$packer->extract_to_pathname($mbzpath, $targetdir)) {
-            throw new \moodle_exception(
-                'pullfailed',
-                'local_nucleusspoke',
-                '',
-                null,
-                'failed to extract MBZ into ' . $targetdir
-            );
+            $msg = 'failed to extract MBZ into ' . $targetdir;
+            throw new \moodle_exception('pullfailed', 'local_nucleusspoke', '', $msg, $msg);
         }
         return $backupdir;
     }
@@ -262,13 +261,8 @@ class puller {
         try {
             if (!$rc->execute_precheck()) {
                 $warnings = $rc->get_precheck_results();
-                throw new \moodle_exception(
-                    'pullfailed',
-                    'local_nucleusspoke',
-                    '',
-                    null,
-                    'restore precheck failed: ' . json_encode($warnings)
-                );
+                $msg = 'restore precheck failed: ' . json_encode($warnings);
+                throw new \moodle_exception('pullfailed', 'local_nucleusspoke', '', $msg, $msg);
             }
             // Override the names baked into the backup MBZ so the
             // local course identifies the family + version, not the

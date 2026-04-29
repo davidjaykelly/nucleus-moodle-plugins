@@ -116,10 +116,31 @@ class copy_locally {
             \backup::TARGET_NEW_COURSE
         );
         try {
-            if (!$rc->execute_precheck()) {
-                $warnings = $rc->get_precheck_results();
-                $msg = 'Restore precheck failed: ' . json_encode($warnings);
+            // Same user-data stripping as puller.php — federation pulls
+            // never carry users/roles/files/logs across; they belong to
+            // the spoke. Without this the hub's admin user clashes with
+            // the spoke's admin and precheck fails.
+            $plan = $rc->get_plan();
+            foreach (['users', 'role_assignments', 'user_files', 'logs', 'comments', 'badges', 'grade_histories'] as $key) {
+                if ($plan->setting_exists($key)) {
+                    $plan->get_setting($key)->set_value(false);
+                }
+            }
+            // Per ADR-021 — only `errors` should block; `warnings`
+            // (e.g. backup-from-newer-Moodle compatibility note) are
+            // non-blocking and just need surfacing to the operator.
+            $rc->execute_precheck();
+            $precheck = $rc->get_precheck_results();
+            if (!empty($precheck['errors'])) {
+                $msg = 'Restore precheck failed: ' . json_encode($precheck);
                 throw new \moodle_exception('huberror', 'local_nucleuscommon', '', $msg, $msg);
+            }
+            if (!empty($precheck['warnings'])) {
+                debugging(
+                    'Nucleus pull warnings (proceeding anyway): '
+                    . json_encode($precheck['warnings']),
+                    DEBUG_NORMAL
+                );
             }
             $rc->execute_plan();
         } finally {

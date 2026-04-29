@@ -261,10 +261,47 @@ class puller {
             \backup::TARGET_NEW_COURSE
         );
         try {
-            if (!$rc->execute_precheck()) {
-                $warnings = $rc->get_precheck_results();
-                $msg = 'restore precheck failed: ' . json_encode($warnings);
+            // Strip user-side data from the restore BEFORE the precheck
+            // runs. Federation pulls bring course content across; users,
+            // their roles, their files etc. belong to the spoke and
+            // shouldn't be replaced by the hub's. Without this the hub's
+            // `admin` user clashes with the spoke's `admin` and precheck
+            // fails with "Trying to restore user 'admin' from backup
+            // file will cause conflict".
+            //
+            // We disable user data + the dependent settings the restore
+            // plan derives from it (role assignments, groupings, etc.).
+            // Settings that don't exist on the source backup (older
+            // Moodle versions) are silently skipped.
+            $plan = $rc->get_plan();
+            foreach (['users', 'role_assignments', 'user_files', 'logs', 'comments', 'badges', 'grade_histories'] as $key) {
+                if ($plan->setting_exists($key)) {
+                    $plan->get_setting($key)->set_value(false);
+                }
+            }
+            // Moodle's execute_precheck() returns false on EITHER errors
+            // or warnings, but warnings (e.g. "backup is from a newer
+            // Moodle version") are non-blocking — the restore engine
+            // proceeds happily, the warning is just informational.
+            // Inspect the structured result and only fail on actual
+            // errors. Warnings are captured + audit-logged below so the
+            // spoke admin can see what wasn't perfectly compatible.
+            // (See ADR-021 for the broader dependency-tier model.)
+            $rc->execute_precheck();
+            $precheck = $rc->get_precheck_results();
+            if (!empty($precheck['errors'])) {
+                $msg = 'restore precheck failed: ' . json_encode($precheck);
                 throw new \moodle_exception('pullfailed', 'local_nucleusspoke', '', $msg, $msg);
+            }
+            if (!empty($precheck['warnings'])) {
+                // Best-effort visibility — log to debugging() so it
+                // lands in the Moodle log viewer; future ADR-021 work
+                // surfaces these in the catalogue UI proper.
+                debugging(
+                    'Nucleus pull warnings (proceeding anyway): '
+                    . json_encode($precheck['warnings']),
+                    DEBUG_NORMAL
+                );
             }
             // Override the names baked into the backup MBZ so the
             // local course identifies the family + version, not the
@@ -272,7 +309,6 @@ class puller {
             // noisy, e.g. mid-edit titles). create_new_course already
             // wrote our preferred names; the restore plan will
             // otherwise stomp them. set_value before execute_plan.
-            $plan = $rc->get_plan();
             if ($plan->setting_exists('course_fullname')) {
                 $plan->get_setting('course_fullname')->set_value($fullname);
             }

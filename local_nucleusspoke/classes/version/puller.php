@@ -80,7 +80,8 @@ class puller {
                     $backupdir,
                     $family,
                     $version,
-                    $userid
+                    $userid,
+                    self::resolve_target_category($targetcategoryid)
                 );
             } finally {
                 // Restore consumes the extracted tree; clean up whatever's left.
@@ -242,13 +243,14 @@ class puller {
         string $backupdir,
         array $family,
         array $version,
-        int $userid
+        int $userid,
+        int $categoryid
     ): int {
         $shortname = self::uniquify_shortname(
             $family['slug'] . '-v' . $version['versionnumber']
         );
         $fullname = $family['slug'] . ' (v' . $version['versionnumber'] . ')';
-        $newcourseid = \restore_dbops::create_new_course($fullname, $shortname, 1);
+        $newcourseid = \restore_dbops::create_new_course($fullname, $shortname, $categoryid);
 
         $rc = new \restore_controller(
             $backupdir,
@@ -334,6 +336,44 @@ class puller {
             $i++;
         }
         return $candidate;
+    }
+
+    /**
+     * Resolve the category id pulled courses get restored into.
+     *
+     * The previous behaviour hardcoded `1` (Moodle's "Miscellaneous"
+     * default). That breaks on any Moodle whose categories have been
+     * reorganised — Misc may have been renamed, deleted, or its id
+     * may not match. New behaviour:
+     *
+     *   1. If the caller passed an explicit id and it exists, use it.
+     *   2. Otherwise find or create a "Nucleus federation" category
+     *      and use that.
+     *
+     * Putting federated courses in their own category is also nicer
+     * organisationally than mixing them into the spoke's local Misc.
+     *
+     * @param int|null $explicit Caller-supplied target. Validated for
+     *                           existence; falls through if missing.
+     * @return int A guaranteed-valid `course_categories.id`.
+     */
+    private static function resolve_target_category(?int $explicit): int {
+        global $DB;
+        if ($explicit !== null && $DB->record_exists('course_categories', ['id' => $explicit])) {
+            return $explicit;
+        }
+        // Find by idnumber so renames don't break the lookup. The
+        // idnumber is plugin-scoped and unlikely to clash.
+        $existing = $DB->get_record('course_categories', ['idnumber' => 'nucleus_federation']);
+        if ($existing) {
+            return (int) $existing->id;
+        }
+        $created = \core_course_category::create([
+            'name' => 'Nucleus federation',
+            'idnumber' => 'nucleus_federation',
+            'description' => 'Courses pulled from a Nucleus federation hub. Managed automatically — restored versions land here unless an explicit category is set on pull.',
+        ]);
+        return (int) $created->id;
     }
 
 }

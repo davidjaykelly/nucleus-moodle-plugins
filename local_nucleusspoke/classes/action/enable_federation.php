@@ -67,7 +67,7 @@ class enable_federation {
             if ((int)$c['id'] === $hubcourseid) { $hubcourse = $c; break; }
         }
         if (!$hubcourse) {
-            throw new \moodle_exception('huberror', 'local_nucleuscommon', '', null,
+            throw new \moodle_exception('huberror', 'local_nucleuscommon', '', "Hub course {$hubcourseid} not offered for federation.",
                 "Hub course {$hubcourseid} not offered for federation.");
         }
 

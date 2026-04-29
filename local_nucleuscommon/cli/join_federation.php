@@ -147,6 +147,20 @@ $response = $curl->post($registerurl, $body, [
 $status = $curl->info['http_code'] ?? 0;
 
 if ($status !== 200) {
+    // 405 from nginx + a non-JSON body strongly suggests the hub-url
+    // is missing the `/api` suffix (request hit the SPA's static
+    // server instead of the control plane). Print a precise hint
+    // before falling through to the generic error path.
+    if ($status === 405 || $status === 404) {
+        $hub = rtrim($options['hub-url'], '/');
+        if (!preg_match('@/api(/|$)@', $hub)) {
+            cli_error(
+                "Register failed (HTTP {$status}). Looks like the hub-url is missing the /api suffix.\n"
+                . "Try: --hub-url={$hub}/api"
+            );
+        }
+    }
+
     // The control plane returns structured errors — surface them.
     $reason = '(no response body)';
     if (!empty($response)) {
@@ -172,9 +186,31 @@ set_config('federationid',  $result['federationId'], 'local_nucleuscommon');
 set_config('externalspokeid', $result['spokeId'],   'local_nucleuscommon');
 
 set_config('hubwwwroot',    $result['hubWwwroot'],  'local_nucleusspoke');
-// hubtoken is reused from the federation-node secret pattern; per-spoke
-// tokens replace this in Phase 2 W3 (ADR roadmap).
-set_config('hubtoken',      $result['cpSecret'],    'local_nucleusspoke');
+// hubtoken is the per-spoke Moodle WS token the hub minted via
+// local_nucleushub_register_spoke during the register handshake.
+// The hub validates this against `external_tokens` on every spoke→hub
+// WS call (list_families, request_course_copy, etc.). Falls back to
+// cpSecret for older CP versions that don't return hubToken; that
+// older fallback only worked when the hub was specifically configured
+// to accept the federation-node secret as a wstoken (rare).
+if (!empty($result['hubToken'])) {
+    set_config('hubtoken', $result['hubToken'], 'local_nucleusspoke');
+} else {
+    set_config('hubtoken', $result['cpSecret'], 'local_nucleusspoke');
+}
+// spokename = the slug the operator picked when minting the invite.
+// It's the Redis Streams consumer-group identifier; without it the
+// settings page renders the default "default" placeholder which would
+// collide if more than one external spoke joined this hub. Falls back
+// to nothing (Moodle keeps its 'default' default) on older CP versions
+// that don't return slug in the register response.
+if (!empty($result['slug'])) {
+    set_config('spokename', $result['slug'], 'local_nucleusspoke');
+}
+// hubconnecturl stays empty for external spokes — they reach the hub
+// at its public wwwroot, not via in-cluster DNS. The spoke admin can
+// override later from settings if their network blocks public reach.
+set_config('hubconnecturl', '', 'local_nucleusspoke');
 
 // 4. Success summary.
 cli_writeln('');

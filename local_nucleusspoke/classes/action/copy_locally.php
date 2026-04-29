@@ -65,22 +65,22 @@ class copy_locally {
             if ((int)$c['id'] === $hubcourseid) { $hubcourse = $c; break; }
         }
         if (!$hubcourse) {
-            throw new \moodle_exception('huberror', 'local_nucleuscommon', '', null,
+            throw new \moodle_exception('huberror', 'local_nucleuscommon', '', "Hub course {$hubcourseid} not offered for federation.",
                 "Hub course {$hubcourseid} not offered for federation.");
         }
 
         // Ask the hub to produce a backup.
         $response = $client->request_course_copy($hubcourseid);
         if (($response['status'] ?? '') !== 'ready' || empty($response['backup_url'])) {
-            throw new \moodle_exception('huberror', 'local_nucleuscommon', '', null,
-                'Hub returned non-ready status: ' . json_encode($response));
+            $msg = 'Hub returned non-ready status: ' . json_encode($response);
+            throw new \moodle_exception('huberror', 'local_nucleuscommon', '', $msg, $msg);
         }
 
         // HTTP-fetch the MBZ into a local tempfile, then extract.
         $mbzpath = tempnam(sys_get_temp_dir(), 'nucleus-mbz-');
         try {
             if (!$client->fetch_backup($response['backup_url'], $mbzpath)) {
-                throw new \moodle_exception('huberror', 'local_nucleuscommon', '', null,
+                throw new \moodle_exception('huberror', 'local_nucleuscommon', '', 'MBZ download failed for ' . $response['backup_url'],
                     'MBZ download failed for ' . $response['backup_url']);
             }
 
@@ -90,17 +90,21 @@ class copy_locally {
             check_dir_exists($targetdir, true, true);
             $packer = get_file_packer('application/vnd.moodle.backup');
             if (!$packer->extract_to_pathname($mbzpath, $targetdir)) {
-                throw new \moodle_exception('huberror', 'local_nucleuscommon', '', null,
+                throw new \moodle_exception('huberror', 'local_nucleuscommon', '', 'Failed to extract MBZ into ' . $targetdir,
                     'Failed to extract MBZ into ' . $targetdir);
             }
         } finally {
             @unlink($mbzpath);
         }
 
-        // Create an empty target course to restore into.
+        // Create an empty target course to restore into. Same category
+        // resolution as puller.php — find/create a "Nucleus federation"
+        // category by idnumber so we don't blow up on Moodles whose
+        // Miscellaneous (id=1) has been renamed or deleted.
         $shortname = self::uniquify_shortname('fed_' . ($hubcourse['shortname'] ?? 'course'));
         $fullname = 'Federated: ' . ($hubcourse['fullname'] ?? "Course {$hubcourseid}");
-        $newcourseid = \restore_dbops::create_new_course($fullname, $shortname, 1);
+        $categoryid = self::resolve_target_category();
+        $newcourseid = \restore_dbops::create_new_course($fullname, $shortname, $categoryid);
 
         // Run the restore.
         $rc = new \restore_controller(
@@ -114,8 +118,8 @@ class copy_locally {
         try {
             if (!$rc->execute_precheck()) {
                 $warnings = $rc->get_precheck_results();
-                throw new \moodle_exception('huberror', 'local_nucleuscommon', '', null,
-                    'Restore precheck failed: ' . json_encode($warnings));
+                $msg = 'Restore precheck failed: ' . json_encode($warnings);
+                throw new \moodle_exception('huberror', 'local_nucleuscommon', '', $msg, $msg);
             }
             $rc->execute_plan();
         } finally {
@@ -154,5 +158,26 @@ class copy_locally {
             $i++;
         }
         return $candidate;
+    }
+
+    /**
+     * Find or create the "Nucleus federation" category and return its
+     * id. Mirrors puller::resolve_target_category — kept duplicated
+     * (rather than shared via local_nucleuscommon) so each path stays
+     * readable in isolation; if a third caller appears, fold this
+     * into nucleuscommon as a static helper.
+     */
+    private static function resolve_target_category(): int {
+        global $DB;
+        $existing = $DB->get_record('course_categories', ['idnumber' => 'nucleus_federation']);
+        if ($existing) {
+            return (int) $existing->id;
+        }
+        $created = \core_course_category::create([
+            'name' => 'Nucleus federation',
+            'idnumber' => 'nucleus_federation',
+            'description' => 'Courses pulled from a Nucleus federation hub.',
+        ]);
+        return (int) $created->id;
     }
 }

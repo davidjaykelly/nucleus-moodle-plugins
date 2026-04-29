@@ -142,7 +142,7 @@ class hub_client {
             $attempt++;
         } while ($attempt <= $this->maxretries);
 
-        throw new \moodle_exception('huberror', 'local_nucleuscommon', '', null, $lasterror);
+        throw new \moodle_exception('huberror', 'local_nucleuscommon', '', $lasterror, $lasterror);
     }
 
     /**
@@ -194,7 +194,7 @@ class hub_client {
 
             if ($errno === 0 && $httpcode >= 200 && $httpcode < 300) {
                 if (file_put_contents($localpath, $response) === false) {
-                    throw new \moodle_exception('huberror', 'local_nucleuscommon', '', null,
+                    throw new \moodle_exception('huberror', 'local_nucleuscommon', '', "could not write download to {$localpath}",
                         "could not write download to {$localpath}");
                 }
                 return true;
@@ -207,7 +207,7 @@ class hub_client {
             $attempt++;
         } while ($attempt <= $this->maxretries);
 
-        throw new \moodle_exception('huberror', 'local_nucleuscommon', '', null, $lasterror);
+        throw new \moodle_exception('huberror', 'local_nucleuscommon', '', $lasterror, $lasterror);
     }
 
     /**
@@ -224,12 +224,12 @@ class hub_client {
     private static function decode(string $response, string $function) {
         $decoded = json_decode($response, true);
         if ($decoded === null && json_last_error() !== JSON_ERROR_NONE) {
-            throw new \moodle_exception('huberror', 'local_nucleuscommon', '', null,
-                "hub call {$function} returned non-JSON: " . substr($response, 0, 500));
+            $msg = "hub call {$function} returned non-JSON: " . substr($response, 0, 500);
+            throw new \moodle_exception('huberror', 'local_nucleuscommon', '', $msg, $msg);
         }
         if (is_array($decoded) && isset($decoded['exception'])) {
             $msg = $decoded['message'] ?? $decoded['exception'];
-            throw new \moodle_exception('huberror', 'local_nucleuscommon', '', null,
+            throw new \moodle_exception('huberror', 'local_nucleuscommon', '', "hub call {$function} raised {$decoded['exception']}: {$msg}",
                 "hub call {$function} raised {$decoded['exception']}: {$msg}");
         }
         return $decoded;

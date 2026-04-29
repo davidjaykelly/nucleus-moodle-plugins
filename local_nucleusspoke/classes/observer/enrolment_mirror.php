@@ -78,8 +78,8 @@ class enrolment_mirror {
             );
             $hubuserid = (int)($projection['hubuserid'] ?? 0);
             if ($hubuserid <= 0) {
-                throw new \moodle_exception('huberror', 'local_nucleuscommon', '', null,
-                    'project_user returned no hubuserid: ' . json_encode($projection));
+                $msg = 'project_user returned no hubuserid: ' . json_encode($projection);
+                throw new \moodle_exception('huberror', 'local_nucleuscommon', '', $msg, $msg);
             }
             $client->request_enrolment($hubuserid, (int)$fed->hubcourseid);
         } catch (\Throwable $e) {

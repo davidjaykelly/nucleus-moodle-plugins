@@ -41,7 +41,7 @@ class register_spoke extends external_api {
 
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters([
-            'wwwroot'    => new external_value(PARAM_URL, 'Spoke browser-facing URL (e.g. https://acme.asdk.co.uk)'),
+            'wwwroot'    => new external_value(PARAM_URL, 'Spoke browser-facing URL (e.g. https://acme.example.com)'),
             'name'       => new external_value(PARAM_TEXT, 'Operator-facing spoke name / slug'),
             'cpspokeid'  => new external_value(
                 PARAM_RAW,

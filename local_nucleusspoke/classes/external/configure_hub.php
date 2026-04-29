@@ -41,7 +41,7 @@ class configure_hub extends external_api {
 
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters([
-            'hubwwwroot'    => new external_value(PARAM_URL, 'Hub browser-facing URL (e.g. https://hub.asdk.co.uk).'),
+            'hubwwwroot'    => new external_value(PARAM_URL, 'Hub browser-facing URL (e.g. https://hub.example.com).'),
             'hubtoken'      => new external_value(PARAM_RAW, 'WS token issued by the hub for this spoke.'),
             'hubconnecturl' => new external_value(
                 PARAM_URL,

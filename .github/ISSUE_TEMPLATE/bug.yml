@@ -1,0 +1,92 @@
+name: Bug report
+description: Something is broken or doesn't behave as the docs say it should.
+title: "[bug] "
+labels: [bug, triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing! The more of this you can fill in, the faster I can reproduce. Skip fields that genuinely don't apply.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: A short, plain description. Pasted error messages welcome.
+      placeholder: e.g. Spoke pull failed with "course not found" even though the version was published cleanly on the hub.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+      description: One or two lines is plenty.
+      placeholder: e.g. Pull should succeed and create a new course in the configured target category.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: |
+        Numbered list, ideally minimal. If reproduction needs a specific federation shape (e.g. "two spokes sharing a hub"), call that out.
+      value: |
+        1.
+        2.
+        3.
+
+  - type: dropdown
+    id: side
+    attributes:
+      label: Which side fails?
+      multiple: false
+      options:
+        - Hub
+        - Spoke
+        - Both
+        - Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: moodle-version
+    attributes:
+      label: Moodle version
+      description: From `Site admin → Notifications` or `version.php`.
+      placeholder: "5.1.2 (Build 20260301)"
+    validations:
+      required: true
+
+  - type: input
+    id: plugin-versions
+    attributes:
+      label: Plugin versions
+      description: |
+        From `Site admin → Plugins → Plugin overview`. Include all three Nucleus plugins you have installed.
+      placeholder: "hub 0.5.0-phase3 / spoke 0.7.1-phase3 / common 0.4.0-phase3"
+    validations:
+      required: true
+
+  - type: input
+    id: php-db
+    attributes:
+      label: PHP + database
+      placeholder: "PHP 8.2.18, Postgres 16"
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / stack traces
+      description: |
+        Anything from the Moodle log (`Site admin → Reports → Logs`), the web server error log, or a direct `try/catch` dump. Wrap long blocks in triple backticks.
+      render: shell
+
+  - type: checkboxes
+    id: workaround
+    attributes:
+      label: Have you found a workaround?
+      options:
+        - label: I've found something that works for now (describe in the box above)
+        - label: This is blocking me — happy to test fixes against my setup

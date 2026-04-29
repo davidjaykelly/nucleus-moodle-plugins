@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<XMLDB PATH="local/nucleushub/db" VERSION="20260424" COMMENT="Nucleus federation hub — tables for registered spokes, projected users (Mode B), outbound event log, and course-versioning draft/changelog state (ADR-014)."
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="../../../../lib/xmldb/xmldb.xsd"
+>
+  <TABLES>
+    <TABLE NAME="local_nucleushub_spokes" COMMENT="Spokes registered with this federation hub. Phase 0 holds a single row, inserted manually; Phase 1 is populated by the control plane at spoke provisioning time.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="name" TYPE="char" LENGTH="100" NOTNULL="true" SEQUENCE="false" COMMENT="Human-readable spoke name."/>
+        <FIELD NAME="wwwroot" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false" COMMENT="Spoke's wwwroot reachable from the hub."/>
+        <FIELD NAME="token" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false" COMMENT="Shared secret used by this spoke to call hub web services. Phase 0 is the matching wstoken."/>
+        <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="active" SEQUENCE="false" COMMENT="active | suspended"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="timelastheartbeat" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="cpspokeid" TYPE="char" LENGTH="40" NOTNULL="false" SEQUENCE="false" COMMENT="Control-plane Spoke.id (cuid). Set at register_spoke time; used to address the spoke on outbound events without a name lookup. Phase B1."/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="wwwroot" UNIQUE="true" FIELDS="wwwroot"/>
+        <INDEX NAME="status" UNIQUE="false" FIELDS="status"/>
+        <INDEX NAME="cpspokeid" UNIQUE="false" FIELDS="cpspokeid"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="local_nucleushub_projusers" COMMENT="Projected users (Mode B only). Maps a (spokeid, spokeuserid) tuple to a shadow mdl_user record on the hub. Created on first enrolment of the spoke user in any hub-hosted course.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="spokeid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="spokeuserid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="User id on the spoke side."/>
+        <FIELD NAME="hubuserid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Shadow mdl_user.id on the hub."/>
+        <FIELD NAME="spokeusername" TYPE="char" LENGTH="100" NOTNULL="true" SEQUENCE="false" COMMENT="Denormalised for debugging — authoritative value lives on the spoke."/>
+        <FIELD NAME="spokeemail" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false" COMMENT="Denormalised for debugging — authoritative value lives on the spoke."/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="spokeid_fk" TYPE="foreign" FIELDS="spokeid" REFTABLE="local_nucleushub_spokes" REFFIELDS="id"/>
+        <KEY NAME="hubuserid_fk" TYPE="foreign" FIELDS="hubuserid" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="spoke_user" UNIQUE="true" FIELDS="spokeid, spokeuserid" COMMENT="The lookup key used at enrolment time. FK on hubuserid already provides a reverse-lookup index."/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="local_nucleushub_events" COMMENT="Outbound event log. Every envelope published to the Redis stream is mirrored here for debugging and (eventually) replay. Not load-bearing for correctness in Phase 0.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="envelopeid" TYPE="char" LENGTH="32" NOTNULL="true" SEQUENCE="false" COMMENT="Envelope.id set by the publisher."/>
+        <FIELD NAME="streamid" TYPE="char" LENGTH="32" NOTNULL="true" SEQUENCE="false" COMMENT="Redis stream id returned by XADD."/>
+        <FIELD NAME="type" TYPE="char" LENGTH="50" NOTNULL="true" SEQUENCE="false" COMMENT="Envelope type, e.g. completion.v1"/>
+        <FIELD NAME="destination" TYPE="char" LENGTH="100" NOTNULL="true" SEQUENCE="false" COMMENT="hub | spoke:&lt;id&gt; | broadcast"/>
+        <FIELD NAME="payload" TYPE="text" NOTNULL="true" SEQUENCE="false" COMMENT="JSON-encoded envelope.payload."/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="envelopeid" UNIQUE="false" FIELDS="envelopeid"/>
+        <INDEX NAME="type_time" UNIQUE="false" FIELDS="type, timecreated"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="local_nucleushub_draft" COMMENT="Hub-side tracking for the live draft of each course family: which Moodle course is the working copy, what the latest published version was, and how many unpublished edits have accumulated since then. Exactly one row per family (one-course model per ADR-014)."
+>
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="familyid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="FK to local_nucleuscommon_family.id. Unique — the one-course model pins a draft to one family."/>
+        <FIELD NAME="hubcourseid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="mdl_course.id of the working hub course. Unique — one course can back one family."/>
+        <FIELD NAME="lastpublishversionid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="FK to local_nucleuscommon_version.id. Null if the family has never been published."/>
+        <FIELD NAME="pendingchangecount" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Changelog rows accumulated since the last publish. Resets to 0 on publish."/>
+        <FIELD NAME="timelastedit" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Unix time of the most recent edit event, for 'N minutes ago' banners."/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="familyid_fk" TYPE="foreign" FIELDS="familyid" REFTABLE="local_nucleuscommon_family" REFFIELDS="id"/>
+        <KEY NAME="lastpublishversionid_fk" TYPE="foreign" FIELDS="lastpublishversionid" REFTABLE="local_nucleuscommon_version" REFFIELDS="id"/>
+        <KEY NAME="hubcourseid_fk" TYPE="foreign" FIELDS="hubcourseid" REFTABLE="course" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="familyid" UNIQUE="true" FIELDS="familyid"/>
+        <INDEX NAME="hubcourseid" UNIQUE="true" FIELDS="hubcourseid"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="local_nucleushub_changelog" COMMENT="Per-family accumulator of course-edit events since the last publish. Rolled up into the version's releasenotes summary on publish, then cleared. Populated by hooks into Moodle course/module/section/file events (see ADR-014 §Hub-side editing lifecycle)."
+>
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="familyid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="eventkind" TYPE="char" LENGTH="80" NOTNULL="true" SEQUENCE="false" COMMENT="Normalised event name, e.g. 'module_added', 'module_updated', 'section_updated', 'file_replaced', 'course_updated'."/>
+        <FIELD NAME="objecttype" TYPE="char" LENGTH="40" NOTNULL="false" SEQUENCE="false" COMMENT="Optional: 'cm', 'section', 'file', 'course' — the kind of thing the event targeted."/>
+        <FIELD NAME="objectid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Optional: Moodle id of the targeted object (cm id, section id, etc.)."/>
+        <FIELD NAME="actoruserid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="familyid_fk" TYPE="foreign" FIELDS="familyid" REFTABLE="local_nucleuscommon_family" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="family_time" UNIQUE="false" FIELDS="familyid, timecreated" COMMENT="Listing a family's pending changes in chronological order."/>
+      </INDEXES>
+    </TABLE>
+  </TABLES>
+</XMLDB>

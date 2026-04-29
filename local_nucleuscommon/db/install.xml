@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<XMLDB PATH="local/nucleuscommon/db" VERSION="20260424" COMMENT="Nucleus federation common — shared vocabulary tables (course families + versions) that travel between hub and spoke Moodles per ADR-014."
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="../../../../lib/xmldb/xmldb.xsd"
+>
+  <TABLES>
+    <TABLE NAME="local_nucleuscommon_family" COMMENT="A course family: stable identity for a course across all of its versions. The same family exists as a local row on the hub and on each spoke that has pulled it; rows are bridged across instances by the 'guid' column (UUID), which is the wire identity.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="guid" TYPE="char" LENGTH="36" NOTNULL="true" SEQUENCE="false" COMMENT="Global UUID identity. Set by the hub at family creation and preserved verbatim when the family is mirrored onto a spoke via pull."/>
+        <FIELD NAME="slug" TYPE="char" LENGTH="120" NOTNULL="true" SEQUENCE="false" COMMENT="Human-readable stable identifier, e.g. 'acme-intro-to-safeguarding'. Immutable after creation."/>
+        <FIELD NAME="hubfederationid" TYPE="char" LENGTH="64" NOTNULL="true" SEQUENCE="false" COMMENT="Control-plane federation id the family originated from. Used by spokes to resolve which hub to pull snapshots from."/>
+        <FIELD NAME="catalogvisible" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="1" SEQUENCE="false" COMMENT="Whether this family is listed in the federation catalog browser. Hub admins can unlist a family to stop new spokes adopting it while existing pulls keep updating."/>
+        <FIELD NAME="createdbyid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Local Moodle user id of the creator."/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="guid" UNIQUE="true" FIELDS="guid"/>
+        <INDEX NAME="slug_per_fed" UNIQUE="true" FIELDS="hubfederationid, slug" COMMENT="Slugs are unique per federation; the same slug in a different federation is a different family."/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="local_nucleuscommon_version" COMMENT="An immutable published snapshot of a family at a point in time. Same row mirrored on hub (record of publish) and spoke (record of what the local instance is pinned to). Bridged across instances by 'guid'.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="guid" TYPE="char" LENGTH="36" NOTNULL="true" SEQUENCE="false" COMMENT="Global UUID identity of this version. Preserved when mirrored onto a spoke via pull."/>
+        <FIELD NAME="familyid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Local FK to local_nucleuscommon_family.id."/>
+        <FIELD NAME="versionnumber" TYPE="char" LENGTH="32" NOTNULL="true" SEQUENCE="false" COMMENT="Semver-lite tag chosen by the publisher: '1.0.0', '1.1.0', '2.0.0', etc. Never re-used within a family."/>
+        <FIELD NAME="severity" TYPE="char" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="major | minor | patch — author intent at publish time, drives notification urgency."/>
+        <FIELD NAME="snapshotref" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="Opaque reference to the .mbz blob in control-plane storage, e.g. 'cp://versions/{guid}.mbz'. Null between version row creation and upload completion."/>
+        <FIELD NAME="snapshothash" TYPE="char" LENGTH="64" NOTNULL="false" SEQUENCE="false" COMMENT="SHA-256 hex of the .mbz for integrity checks on pull."/>
+        <FIELD NAME="hubcourseid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="mdl_course.id the snapshot was taken from (on the hub). Purely informational on spokes."/>
+        <FIELD NAME="publishedbyid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Local Moodle user id of the publisher (on the hub). Informational on spokes."/>
+        <FIELD NAME="timepublished" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="releasenotes" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Author-written summary of what changed. Required for minor and major; optional for patch."/>
+        <FIELD NAME="deprecated" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Hub-side flag: this version should no longer be pulled and existing instances should consider rollback or upgrade."/>
+        <FIELD NAME="deprecatedreason" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="familyid_fk" TYPE="foreign" FIELDS="familyid" REFTABLE="local_nucleuscommon_family" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="guid" UNIQUE="true" FIELDS="guid"/>
+        <INDEX NAME="version_per_family" UNIQUE="true" FIELDS="familyid, versionnumber" COMMENT="Version numbers are unique within a family."/>
+        <INDEX NAME="family_timepublished" UNIQUE="false" FIELDS="familyid, timepublished" COMMENT="Ordered listing of a family's versions."/>
+      </INDEXES>
+    </TABLE>
+  </TABLES>
+</XMLDB>

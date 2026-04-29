@@ -1,0 +1,12 @@
+# Disable the "Open a blank issue" escape hatch and route casual
+# questions to Discussions instead. Keeps the issue queue tight
+# (real bugs + concrete feature requests) without slamming the door
+# on people who just want to ask a question.
+blank_issues_enabled: false
+contact_links:
+  - name: Question or general discussion
+    url: https://github.com/davidjaykelly/nucleus-moodle-plugins/discussions
+    about: For "is this the right approach…" / "does this support…" questions, the discussions tab is faster than an issue and visible to other users.
+  - name: Hosted Nucleus product
+    url: https://nucleuslms.io
+    about: If you'd rather not run the federation yourself, the hosted product runs the same plugins for you.

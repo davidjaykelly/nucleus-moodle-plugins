@@ -1,0 +1,60 @@
+name: Feature request
+description: Something the plugins don't do, that you wish they did.
+title: "[feature] "
+labels: [feature, triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Best PRs land after a short conversation here first — saves wasted work if the change conflicts with something in flight on the hosted product side.
+
+        Some kinds of feature don't fit this repo (control-plane scaffolding, admin UI, anti-features pushing toward paid tiers). The CONTRIBUTING file has the long version of what's out of scope.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What you're trying to do that the plugins don't help with today. Lead with the use case, not the proposed solution.
+      placeholder: |
+        e.g. We run a 30-spoke federation for local councils. When a course version is published on the hub, we'd like spokes to receive a webhook rather than poll the catalogue every 5 minutes.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed
+    attributes:
+      label: Proposed approach (optional)
+      description: |
+        If you've thought about implementation, share it. If not, totally fine — leave blank and we'll figure it out together.
+      placeholder: |
+        e.g. Add a `pubsub_endpoint` setting to local_nucleushub. When set, hub fires a signed POST to that URL on every successful `local_nucleushub_publish_version` call.
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Where would this live?
+      multiple: false
+      options:
+        - local_nucleushub (hub-side)
+        - local_nucleusspoke (spoke-side)
+        - local_nucleuscommon (shared)
+        - New plugin
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Workaround you're using today
+      description: |
+        Helps me weigh urgency. "Ugly cron job" + "no workaround at all" carry different weight.
+
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Are you up for contributing the change?
+      options:
+        - label: I'd like to PR this myself, after we've aligned on the approach
+        - label: Happy to test a PR against my setup
+        - label: Just flagging it — leave to the maintainer

@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<XMLDB PATH="local/nucleusspoke/db" VERSION="20260424" COMMENT="Nucleus federation spoke — local mapping of federation-participating courses plus course-versioning instance / notification state (ADR-014)."
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="../../../../lib/xmldb/xmldb.xsd"
+>
+  <TABLES>
+    <TABLE NAME="local_nucleusspoke_courses" COMMENT="One row per local course that participates in the federation. Mode 'content' rows are local copies restored from a hub MBZ; mode 'identity' rows are placeholders whose enrolments get mirrored to the hub.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="localcourseid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="mdl_course.id on this spoke"/>
+        <FIELD NAME="hubcourseid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Corresponding course id on the hub"/>
+        <FIELD NAME="mode" TYPE="char" LENGTH="20" NOTNULL="true" SEQUENCE="false" COMMENT="content | identity — matches the mode at the time the association was created"/>
+        <FIELD NAME="timesynced" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Unix time of the last sync (backup restore for content, enablement for identity)"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="localcourseid_fk" TYPE="foreign" FIELDS="localcourseid" REFTABLE="course" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="localcourseid" UNIQUE="true" FIELDS="localcourseid" COMMENT="One federation row per local course."/>
+        <INDEX NAME="hubcourseid" UNIQUE="false" FIELDS="hubcourseid" COMMENT="Reverse lookup by hub course id (one hub course can map to multiple local rows only across time, not concurrently)."/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="local_nucleusspoke_instance" COMMENT="Spoke-side tracking for a local course that is pinned to a specific version of a hub-published course family. One row per pulled Moodle course. The same family can have multiple instances on a spoke (e.g. v1.0 running while v1.1 pulled as a new instance) — per ADR-014 spokes never replace in place."
+>
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="familyid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="FK to local_nucleuscommon_family.id."/>
+        <FIELD NAME="versionid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="FK to local_nucleuscommon_version.id. Immutable after creation — instance is pinned to this version for life."/>
+        <FIELD NAME="localcourseid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="mdl_course.id of the local Moodle course restored from the version's snapshot."/>
+        <FIELD NAME="state" TYPE="char" LENGTH="30" NOTNULL="true" DEFAULT="active" SEQUENCE="false" COMMENT="active | closed-to-enrolment | archived | staging. See ADR-014 §Spoke-side decision lifecycle for transitions."/>
+        <FIELD NAME="timepulled" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Unix time the pull completed."/>
+        <FIELD NAME="pulledbyid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Local Moodle user id of the spoke admin who triggered the pull."/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="familyid_fk" TYPE="foreign" FIELDS="familyid" REFTABLE="local_nucleuscommon_family" REFFIELDS="id"/>
+        <KEY NAME="versionid_fk" TYPE="foreign" FIELDS="versionid" REFTABLE="local_nucleuscommon_version" REFFIELDS="id"/>
+        <KEY NAME="localcourseid_fk" TYPE="foreign" FIELDS="localcourseid" REFTABLE="course" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="localcourseid" UNIQUE="true" FIELDS="localcourseid" COMMENT="A given local course backs at most one instance."/>
+        <INDEX NAME="family_state" UNIQUE="false" FIELDS="familyid, state" COMMENT="'Show me active instances of family X'."/>
+        <INDEX NAME="versionid" UNIQUE="false" FIELDS="versionid" COMMENT="'Who's on v1.0?' reverse lookup."/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="local_nucleusspoke_notification" COMMENT="Spoke-local queue of 'a new version of a family you have pulled is available'. One row per (family, version) on this spoke. Received via the control-plane fan-out (ADR-014 §Notifications) and resolved by pulling, snoozing, or dismissing."
+>
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="familyid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="versionid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="The new version now available."/>
+        <FIELD NAME="state" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="pending" SEQUENCE="false" COMMENT="pending | snoozed | dismissed | resolved. 'resolved' means the spoke pulled the version (or a later one)."/>
+        <FIELD NAME="timereceived" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="snoozeuntil" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Unix time the notification auto-returns to 'pending'. Null unless state = snoozed."/>
+        <FIELD NAME="timeresolved" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Unix time state moved to resolved / dismissed (for history queries)."/>
+        <FIELD NAME="resolvedbyid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="User id that resolved it, if any."/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="familyid_fk" TYPE="foreign" FIELDS="familyid" REFTABLE="local_nucleuscommon_family" REFFIELDS="id"/>
+        <KEY NAME="versionid_fk" TYPE="foreign" FIELDS="versionid" REFTABLE="local_nucleuscommon_version" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="family_version" UNIQUE="true" FIELDS="familyid, versionid" COMMENT="Idempotent fan-out: re-notifying the same version is a no-op."/>
+        <INDEX NAME="state_received" UNIQUE="false" FIELDS="state, timereceived" COMMENT="'List pending notifications in arrival order' for dashboard."/>
+      </INDEXES>
+    </TABLE>
+  </TABLES>
+</XMLDB>

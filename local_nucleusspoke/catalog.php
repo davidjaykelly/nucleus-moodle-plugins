@@ -113,7 +113,27 @@ if ($pullfamily !== '' && $pullversion !== '' && $catalog !== null) {
             \core\output\notification::NOTIFY_SUCCESS
         );
     } catch (\Throwable $e) {
-        redirect($pageurl, $e->getMessage(), null, \core\output\notification::NOTIFY_ERROR);
+        // ADR-021 v1.1 — dependency-blocked pulls get a dedicated
+        // compatibility-report page rather than a one-line toast. The
+        // structured payload sits on the exception's $debuginfo (set
+        // by puller::preflight_dependencies). Other errors still use
+        // the toast-redirect path — they're unstructured and the toast
+        // is fine for those.
+        $blocked = ($e instanceof \moodle_exception)
+            && $e->errorcode === 'dependencyblocked';
+        if ($blocked) {
+            $structured = json_decode((string) ($e->debuginfo ?? ''), true);
+            if (is_array($structured)) {
+                $blockedfamily = $family;
+                $blockedversion = $version;
+                $blockedpayload = $structured;
+                // Render page below — fall through to header() + body.
+            } else {
+                redirect($pageurl, $e->getMessage(), null, \core\output\notification::NOTIFY_ERROR);
+            }
+        } else {
+            redirect($pageurl, $e->getMessage(), null, \core\output\notification::NOTIFY_ERROR);
+        }
     }
 }
 
@@ -146,6 +166,106 @@ foreach ($instances as $i) {
 }
 
 echo $OUTPUT->header();
+
+// ADR-021 v1.1 — pull-blocked dedicated page. Rendered at the top of
+// the catalog so the operator sees actionable detail before the
+// grid. Falls through to the normal grid below so they can also
+// pick a different version / family in the same flow.
+if (isset($blockedpayload, $blockedfamily, $blockedversion)) {
+    $blockers = is_array($blockedpayload['blockers'] ?? null) ? $blockedpayload['blockers'] : [];
+    $modstatus = is_array($blockedpayload['mod_status'] ?? null) ? $blockedpayload['mod_status'] : [];
+    $bnotes = is_array($blockedpayload['notes'] ?? null) ? $blockedpayload['notes'] : [];
+
+    echo '<div class="nfcat-blocked-card">';
+    echo '<div class="nfcat-blocked-head">';
+    echo '<div class="nfcat-blocked-eyebrow">'
+        . s(get_string('catalog_blocked_eyebrow', 'local_nucleusspoke')) . '</div>';
+    echo '<div class="nfcat-blocked-title mono">'
+        . s($blockedfamily['slug']) . ' '
+        . '<span class="nfcat-blocked-vchip">v' . s($blockedversion['versionnumber']) . '</span>'
+        . '</div>';
+    echo '<div class="nfcat-blocked-sub">'
+        . s(get_string('catalog_blocked_sub', 'local_nucleusspoke')) . '</div>';
+    echo '</div>';
+
+    if ($modstatus) {
+        echo '<table class="nfcat-mod-table"><thead><tr>'
+            . '<th class="nfcat-mod-icon-col"></th>'
+            . '<th>' . s(get_string('catalog_mod_plugin_col', 'local_nucleusspoke')) . '</th>'
+            . '<th class="nfcat-mod-version-col">'
+                . s(get_string('catalog_mod_manifest_col', 'local_nucleusspoke')) . '</th>'
+            . '<th class="nfcat-mod-version-col">'
+                . s(get_string('catalog_mod_local_col', 'local_nucleusspoke')) . '</th>'
+            . '</tr></thead><tbody>';
+        foreach ($modstatus as $m) {
+            $state = (string) ($m['state'] ?? 'present');
+            $name = (string) ($m['name'] ?? '');
+            $expected = (int) ($m['expected_version'] ?? 0);
+            $local = $m['spoke_version'] ?? null;
+            $icon = $state === 'present' ? '✓' : ($state === 'missing' ? '✗' : '!');
+            echo '<tr class="nfcat-mod-row nfcat-mod-' . s($state) . '">';
+            echo '<td class="nfcat-mod-icon">' . $icon . '</td>';
+            echo '<td class="mono">mod_' . s($name) . '</td>';
+            echo '<td class="mono">' . ($expected > 0 ? 'v' . $expected : '—') . '</td>';
+            if ($state === 'missing') {
+                echo '<td class="mono nfcat-missing-text">'
+                    . s(get_string('catalog_mod_notinstalled', 'local_nucleusspoke')) . '</td>';
+            } else {
+                echo '<td class="mono">v' . (int) $local . '</td>';
+            }
+            echo '</tr>';
+        }
+        echo '</tbody></table>';
+    }
+
+    if ($blockers) {
+        echo '<div class="nfcat-blocked-section">';
+        echo '<div class="nfcat-blocked-label">'
+            . s(get_string('catalog_blocked_remediation', 'local_nucleusspoke')) . '</div>';
+        echo '<ul class="nfcat-blocker-list">';
+        foreach ($blockers as $b) {
+            $detail = (string) ($b['detail'] ?? '');
+            $remedy = (string) ($b['remediation'] ?? '');
+            echo '<li><div>' . s($detail) . '</div>';
+            if ($remedy !== '') {
+                echo '<div class="nfcat-remedy">' . s($remedy) . '</div>';
+            }
+            echo '</li>';
+        }
+        echo '</ul>';
+        echo '</div>';
+    }
+
+    if ($bnotes) {
+        echo '<div class="nfcat-blocked-section">';
+        echo '<div class="nfcat-blocked-label">'
+            . s(get_string('catalog_blocked_notes', 'local_nucleusspoke')) . '</div>';
+        echo '<ul class="nfcat-note-list">';
+        foreach ($bnotes as $n) {
+            echo '<li>' . s((string) $n) . '</li>';
+        }
+        echo '</ul>';
+        echo '</div>';
+    }
+
+    // Retry button — same query string the operator originally clicked.
+    $retryurl = new moodle_url($pageurl, [
+        'familyguid' => $blockedfamily['guid'],
+        'versionguid' => $blockedversion['guid'],
+        'sesskey' => sesskey(),
+    ]);
+    echo '<div class="nfcat-blocked-actions">';
+    echo html_writer::link($retryurl,
+        '<i class="fa fa-redo" aria-hidden="true"></i> '
+        . s(get_string('catalog_blocked_retry', 'local_nucleusspoke')),
+        ['class' => 'nfcat-blocked-retry']);
+    echo html_writer::link($pageurl,
+        s(get_string('catalog_blocked_back', 'local_nucleusspoke')),
+        ['class' => 'nfcat-blocked-back']);
+    echo '</div>';
+
+    echo '</div>';
+}
 
 if ($catalogerror !== null) {
     echo $OUTPUT->notification(
@@ -310,6 +430,126 @@ echo <<<'CSS'
   font-size: 10.5px;
   margin-right: 4px;
 }
+/* ADR-021 v1.1 — pull-blocked compatibility report card. Sits above
+   the catalog grid when a pull was just refused. */
+.nfcat-blocked-card {
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  border-radius: 6px;
+  padding: 16px 18px;
+  margin-bottom: 18px;
+}
+.nfcat-blocked-head { margin-bottom: 12px; }
+.nfcat-blocked-eyebrow {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: #b91c1c;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.nfcat-blocked-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1d2326;
+}
+.nfcat-blocked-vchip {
+  color: #d97706;
+  font-weight: 500;
+  margin-left: 4px;
+}
+.nfcat-blocked-sub {
+  font-size: 13px;
+  color: #4b5563;
+  margin-top: 6px;
+  line-height: 1.5;
+}
+.nfcat-mod-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+  background: #fff;
+  border: 1px solid #fecaca;
+  border-radius: 4px;
+  overflow: hidden;
+  font-size: 13px;
+}
+.nfcat-mod-table th,
+.nfcat-mod-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid #fee2e2;
+  text-align: left;
+  vertical-align: middle;
+}
+.nfcat-mod-table th {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: #6b7280;
+  font-weight: 500;
+  text-transform: uppercase;
+  background: #fff7f7;
+}
+.nfcat-mod-table tr:last-child td { border-bottom: 0; }
+.nfcat-mod-icon-col { width: 22px; }
+.nfcat-mod-version-col { width: 110px; }
+.nfcat-mod-icon {
+  text-align: center;
+  font-weight: 700;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+}
+.nfcat-mod-row.nfcat-mod-missing { background: #fff1f1; }
+.nfcat-mod-row.nfcat-mod-missing .nfcat-mod-icon { color: #b91c1c; }
+.nfcat-mod-row.nfcat-mod-older { background: #fffbeb; }
+.nfcat-mod-row.nfcat-mod-older .nfcat-mod-icon { color: #b45309; }
+.nfcat-mod-row.nfcat-mod-present .nfcat-mod-icon { color: #047857; }
+.nfcat-missing-text { color: #b91c1c; }
+.nfcat-blocked-section { margin-top: 14px; }
+.nfcat-blocked-label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: #6b7280;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+.nfcat-blocker-list,
+.nfcat-note-list {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 13px;
+  color: #1d2326;
+  line-height: 1.5;
+}
+.nfcat-blocker-list li,
+.nfcat-note-list li { margin-bottom: 6px; }
+.nfcat-blocker-list li:last-child,
+.nfcat-note-list li:last-child { margin-bottom: 0; }
+.nfcat-remedy {
+  margin-top: 4px;
+  color: #4b5563;
+  font-size: 12.5px;
+}
+.nfcat-blocked-actions {
+  margin-top: 16px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.nfcat-blocked-retry {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  background: #d97706;
+  color: #fff;
+  border: 1px solid #d97706;
+  border-radius: 4px;
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 12.5px;
+}
+.nfcat-blocked-retry:hover { background: #b45309; border-color: #b45309; color: #fff; text-decoration: none; }
+.nfcat-blocked-back { color: #4b5563; font-size: 12.5px; text-decoration: underline; }
 .nfcat-update-chip {
   display: inline-flex; align-items: center; gap: 5px;
   padding: 4px 10px;

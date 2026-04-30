@@ -53,8 +53,9 @@ class manifest_checker {
      * @return array {
      *   manifest_status: 'present' | 'missing' | 'malformed' | 'extractor_error',
      *   blockers: array<int, array{kind: string, detail: string, remediation: string}>,
-     *   notes: array<int, string>,        // Tier C — log only for v1
-     *   manifest: array|null              // parsed manifest, null if unusable
+     *   notes: array<int, string>,
+     *   manifest: array|null,
+     *   mod_status: array<int, array{name: string, state: string, expected_version: int, spoke_version: int|null}>
      * }
      */
     public static function check(array $describe): array {
@@ -63,6 +64,11 @@ class manifest_checker {
             'blockers' => [],
             'notes' => [],
             'manifest' => null,
+            // ADR-021 v1.1 — per-mod compatibility breakdown for the
+            // operator UI. Empty when manifest is missing / malformed.
+            // Each entry: {name, state, expected_version, spoke_version}.
+            // state ∈ {'present', 'missing', 'older'}.
+            'mod_status' => [],
         ];
 
         if (empty($describe['hasmanifest'])) {
@@ -128,43 +134,71 @@ class manifest_checker {
         // Plugin check — every `mod_*` listed in the manifest must
         // exist locally. Anything missing blocks; older-than-manifest
         // versions emit Tier C notes (Moodle restore handles minor
-        // drift, but the operator deserves to know).
+        // drift, but the operator deserves to know). The mod_status
+        // array is the per-row data the UI table renders.
         $expected = self::expected_mods($manifest);
         $installed = self::installed_mod_versions();
-        if ($expected) {
-            $missing = [];
-            foreach ($expected as $name => $hubversion) {
-                if (!isset($installed[$name])) {
-                    $missing[] = $name;
-                    continue;
-                }
-                $spokeversion = $installed[$name];
-                if ($hubversion > 0 && $spokeversion > 0 && $spokeversion < $hubversion) {
-                    $result['notes'][] = sprintf(
-                        'mod_%s on this spoke (v%d) is older than the version the backup was '
-                            . 'taken with (v%d). Most courses restore cleanly across minor plugin '
-                            . 'drift, but specific features may not render identically.',
-                        $name,
-                        $spokeversion,
-                        $hubversion
-                    );
-                }
-            }
-            if ($missing) {
-                sort($missing);
-                $result['blockers'][] = [
-                    'kind' => 'missing_plugins',
-                    'detail' => sprintf(
-                        'This course uses %d Moodle plugin%s not installed on this spoke: %s.',
-                        count($missing),
-                        count($missing) === 1 ? '' : 's',
-                        implode(', ', array_map(fn ($m) => 'mod_' . $m, $missing))
-                    ),
-                    'remediation' => 'Install the listed plugins on this spoke (Site administration → '
-                        . 'Plugins → Install plugins) and retry the pull. Alternatively, ask the '
-                        . 'hub admin to publish a version of the course that doesn\'t use these.',
+        $modstatus = [];
+        $missing = [];
+        foreach ($expected as $name => $hubversion) {
+            if (!isset($installed[$name])) {
+                $missing[] = $name;
+                $modstatus[] = [
+                    'name' => $name,
+                    'state' => 'missing',
+                    'expected_version' => (int) $hubversion,
+                    'spoke_version' => null,
                 ];
+                continue;
             }
+            $spokeversion = $installed[$name];
+            $state = 'present';
+            if ($hubversion > 0 && $spokeversion > 0 && $spokeversion < $hubversion) {
+                $state = 'older';
+                $result['notes'][] = sprintf(
+                    'mod_%s on this spoke (v%d) is older than the version the backup was '
+                        . 'taken with (v%d). Most courses restore cleanly across minor plugin '
+                        . 'drift, but specific features may not render identically.',
+                    $name,
+                    $spokeversion,
+                    $hubversion
+                );
+            }
+            $modstatus[] = [
+                'name' => $name,
+                'state' => $state,
+                'expected_version' => (int) $hubversion,
+                'spoke_version' => (int) $spokeversion,
+            ];
+        }
+        // Sort for stable rendering: missing first (so the operator sees
+        // the problems at the top), then older, then present, alpha
+        // within each bucket.
+        $stateorder = ['missing' => 0, 'older' => 1, 'present' => 2];
+        usort($modstatus, function (array $a, array $b) use ($stateorder): int {
+            $oa = $stateorder[$a['state']] ?? 9;
+            $ob = $stateorder[$b['state']] ?? 9;
+            if ($oa !== $ob) {
+                return $oa <=> $ob;
+            }
+            return strcmp($a['name'], $b['name']);
+        });
+        $result['mod_status'] = $modstatus;
+
+        if ($missing) {
+            sort($missing);
+            $result['blockers'][] = [
+                'kind' => 'missing_plugins',
+                'detail' => sprintf(
+                    'This course uses %d Moodle plugin%s not installed on this spoke: %s.',
+                    count($missing),
+                    count($missing) === 1 ? '' : 's',
+                    implode(', ', array_map(fn ($m) => 'mod_' . $m, $missing))
+                ),
+                'remediation' => 'Install the listed plugins on this spoke (Site administration → '
+                    . 'Plugins → Install plugins) and retry the pull. Alternatively, ask the '
+                    . 'hub admin to publish a version of the course that doesn\'t use these.',
+            ];
         }
 
         return $result;

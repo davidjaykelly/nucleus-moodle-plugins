@@ -279,4 +279,38 @@ final class manifest_checker_test extends \advanced_testcase {
         $this->assertSame([], $result['blockers']);
         $this->assertSame([], $result['notes']);
     }
+
+    /**
+     * v1.1 — mod_status is the per-row data the UI table renders.
+     * Missing rows float to the top; present rows have spoke_version
+     * populated; missing rows have spoke_version=null.
+     */
+    public function test_mod_status_shape(): void {
+        $this->resetAfterTest();
+
+        $manifest = [
+            'schema_version' => 2,
+            'mods' => [
+                ['name' => 'forum', 'version' => 0],
+                ['name' => 'nucleus_doesnotexist_xyz123', 'version' => 2026010100],
+            ],
+        ];
+        $describe = [
+            'hasmanifest' => true,
+            'manifest' => json_encode($manifest),
+        ];
+        $result = manifest_checker::check($describe);
+
+        $this->assertNotEmpty($result['mod_status']);
+        // Missing should sort first.
+        $this->assertSame('missing', $result['mod_status'][0]['state']);
+        $this->assertSame('nucleus_doesnotexist_xyz123', $result['mod_status'][0]['name']);
+        $this->assertNull($result['mod_status'][0]['spoke_version']);
+        $this->assertSame(2026010100, $result['mod_status'][0]['expected_version']);
+
+        // Forum is present.
+        $this->assertSame('present', $result['mod_status'][1]['state']);
+        $this->assertSame('forum', $result['mod_status'][1]['name']);
+        $this->assertNotNull($result['mod_status'][1]['spoke_version']);
+    }
 }

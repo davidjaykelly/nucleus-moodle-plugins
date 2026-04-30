@@ -99,6 +99,21 @@ class preview_pull extends external_api {
                 $check['blockers']
             ),
             'notes' => array_map(fn ($n) => (string) $n, $check['notes']),
+            'mod_status' => array_map(
+                fn ($m) => [
+                    'name' => (string) ($m['name'] ?? ''),
+                    'state' => (string) ($m['state'] ?? 'present'),
+                    'expected_version' => (int) ($m['expected_version'] ?? 0),
+                    // External `mod_status` represents missing as
+                    // spoke_version=0 on the wire (PARAM_INT can't
+                    // carry null) — readers infer "missing" from the
+                    // state string.
+                    'spoke_version' => isset($m['spoke_version']) && $m['spoke_version'] !== null
+                        ? (int) $m['spoke_version']
+                        : 0,
+                ],
+                $check['mod_status']
+            ),
         ];
     }
 
@@ -126,6 +141,12 @@ class preview_pull extends external_api {
             'notes' => new external_multiple_structure(
                 new external_value(PARAM_RAW, 'Tier C observation; informational, not blocking.')
             ),
+            'mod_status' => new external_multiple_structure(new external_single_structure([
+                'name' => new external_value(PARAM_ALPHANUMEXT, 'Bare mod name (no `mod_` prefix).'),
+                'state' => new external_value(PARAM_ALPHA, 'present | missing | older'),
+                'expected_version' => new external_value(PARAM_INT, 'Version recorded in the manifest. 0 if unknown.'),
+                'spoke_version' => new external_value(PARAM_INT, 'Version installed on this spoke. 0 when state=missing.'),
+            ])),
         ]);
     }
 }

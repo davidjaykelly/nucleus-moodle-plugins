@@ -289,6 +289,10 @@ class puller {
                 'kind' => 'dependencyblocked',
                 'versionguid' => $versionguid,
                 'blockers' => $check['blockers'],
+                // v1.1 — full per-mod breakdown for the spoke catalogue's
+                // richer error page. Caller decodes from $debuginfo.
+                'mod_status' => $check['mod_status'],
+                'notes' => $check['notes'],
             ], JSON_UNESCAPED_SLASHES)
         );
     }

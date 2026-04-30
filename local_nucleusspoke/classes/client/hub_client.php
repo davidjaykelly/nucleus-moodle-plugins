@@ -191,6 +191,22 @@ class hub_client {
     }
 
     /**
+     * ADR-021 Tier A — fetch a published version's dependency manifest
+     * before downloading the MBZ. Spoke uses this to refuse a pull
+     * cleanly when the local plugin set or Moodle major-version isn't
+     * compatible with what the backup needs.
+     *
+     * @param string $versionguid Version guid as returned by list_families().
+     * @return array Wire payload from local_nucleushub_describe_version.
+     */
+    public function describe_version(string $versionguid): array {
+        return $this->transport->call(
+            'local_nucleushub_describe_version',
+            ['versionguid' => $versionguid]
+        );
+    }
+
+    /**
      * Cheap probe used by the admin UI to show connection health. Returns
      * a simple shape for easy rendering rather than throwing on failure.
      *

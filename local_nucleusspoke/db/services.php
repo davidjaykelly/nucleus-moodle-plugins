@@ -101,6 +101,13 @@ $functions = [
         'type'        => 'write',
         'ajax'        => false,
     ],
+    'local_nucleusspoke_preview_pull' => [
+        'classname'   => 'local_nucleusspoke\external\preview_pull',
+        'description' => 'ADR-021 v1.1: run the dependency pre-flight for a hub version without pulling. Returns blockers + Tier C notes for the operator portal.',
+        'type'        => 'read',
+        'ajax'        => false,
+        'capabilities' => 'local/nucleusspoke:pull',
+    ],
 ];
 
 $services = [
@@ -117,6 +124,7 @@ $services = [
             'local_nucleusspoke_instance_action',
             'local_nucleusspoke_apply_completion',
             'local_nucleusspoke_revoke_user',
+            'local_nucleusspoke_preview_pull',
             'local_nucleuscommon_get_tenant_stats',
             'local_nucleuscommon_set_federation_mode',
             'local_nucleuscommon_provision_admin_account',

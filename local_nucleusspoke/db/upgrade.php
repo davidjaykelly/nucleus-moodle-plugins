@@ -71,5 +71,27 @@ function xmldb_local_nucleusspoke_upgrade(int $oldversion): bool {
         upgrade_plugin_savepoint(true, 2026042401, 'local', 'nucleusspoke');
     }
 
+    if ($oldversion < 2026043002) {
+        // ADR-021 v1.1 — pullnotes column on instance. Captures Tier
+        // C notes (older plugin versions, restore precheck warnings)
+        // surfaced in the spoke's catalogue UI.
+        $table = new xmldb_table('local_nucleusspoke_instance');
+        $field = new xmldb_field(
+            'pullnotes',
+            XMLDB_TYPE_TEXT,
+            null,
+            null,
+            null,
+            null,
+            null,
+            'timemodified'
+        );
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        upgrade_plugin_savepoint(true, 2026043002, 'local', 'nucleusspoke');
+    }
+
     return true;
 }

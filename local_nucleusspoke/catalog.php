@@ -126,10 +126,21 @@ foreach ($instances as $i) {
     $famguid = $DB->get_field('local_nucleuscommon_family', 'guid', ['id' => $i->familyid]);
     $verguid = $DB->get_field('local_nucleuscommon_version', 'guid', ['id' => $i->versionid]);
     if ($famguid) {
+        // ADR-021 v1.1 — pullnotes is JSON array of `{kind, detail}`,
+        // null when the pull was clean. Decode here so the render
+        // loop doesn't need to repeat it.
+        $notes = [];
+        if (!empty($i->pullnotes)) {
+            $decoded = json_decode((string) $i->pullnotes, true);
+            if (is_array($decoded)) {
+                $notes = $decoded;
+            }
+        }
         $pulledguids[$famguid] = [
             'state' => $i->state,
             'versionguid' => $verguid,
             'localcourseid' => (int) $i->localcourseid,
+            'notes' => $notes,
         ];
     }
 }
@@ -259,6 +270,46 @@ echo <<<'CSS'
   font-size: 11.5px;
   font-weight: 500;
 }
+/* ADR-021 v1.1 — Tier C notes badge. <details>/<summary> gives a
+   click-to-expand affordance with no JS. Hovering the chip shows
+   the count summary in a native tooltip. */
+.nfcat-notes { display: inline-block; margin-right: 4px; }
+.nfcat-notes-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 10px;
+  background: #eff6ff;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  list-style: none;
+}
+.nfcat-notes-chip::-webkit-details-marker { display: none; }
+.nfcat-notes[open] .nfcat-notes-chip { background: #dbeafe; }
+.nfcat-notes-list {
+  margin: 6px 0 0;
+  padding: 8px 10px 8px 22px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #1d2326;
+  line-height: 1.5;
+}
+.nfcat-notes-list li { margin-bottom: 4px; }
+.nfcat-notes-list li:last-child { margin-bottom: 0; }
+.nfcat-notes-kind {
+  display: inline-block;
+  padding: 1px 6px;
+  background: #e2e8f0;
+  color: #475569;
+  border-radius: 3px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 10.5px;
+  margin-right: 4px;
+}
 .nfcat-update-chip {
   display: inline-flex; align-items: center; gap: 5px;
   padding: 4px 10px;
@@ -321,6 +372,31 @@ foreach ($catalog as $family) {
     if (isset($pulledguids[$family['guid']])) {
         $local = $pulledguids[$family['guid']];
         $sameversion = $latest && $local['versionguid'] === $latest['guid'];
+        // ADR-021 v1.1 — render Tier C notes badge for any pulled
+        // instance with non-empty pullnotes. Hover shows the full
+        // list; click expands inline (details/summary). Counts cap
+        // at 99 to keep the chip stable; the expanded list is
+        // unbounded.
+        $notecount = isset($local['notes']) ? count($local['notes']) : 0;
+        if ($notecount > 0) {
+            $countlabel = $notecount > 99 ? '99+' : (string) $notecount;
+            echo '<details class="nfcat-notes">'
+                . '<summary class="nfcat-notes-chip" '
+                . 'title="' . s(get_string('catalog_notes_summary', 'local_nucleusspoke', $countlabel)) . '">'
+                . '<i class="fa fa-info-circle" aria-hidden="true"></i> '
+                . s(get_string('catalog_notes_chip', 'local_nucleusspoke', $countlabel))
+                . '</summary>'
+                . '<ul class="nfcat-notes-list">';
+            foreach ($local['notes'] as $note) {
+                $kind = isset($note['kind']) ? (string) $note['kind'] : 'note';
+                $detail = isset($note['detail']) ? (string) $note['detail'] : '';
+                echo '<li>'
+                    . '<span class="nfcat-notes-kind">' . s($kind) . '</span> '
+                    . s($detail)
+                    . '</li>';
+            }
+            echo '</ul></details>';
+        }
         if ($sameversion) {
             echo '<span class="nfcat-pulled-chip">'
                 . '<i class="fa fa-check" aria-hidden="true"></i>'

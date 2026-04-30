@@ -94,6 +94,10 @@ $string['statusbar_spoke_pending_hint'] = '{$a} newer version(s) are waiting —
 $string['family'] = 'Family';
 $string['history'] = 'History';
 $string['hubunreachable'] = 'Federation hub is not reachable: {$a}';
+$string['catalog_notes_chip'] = '{$a} notes';
+$string['catalog_notes_summary'] = 'This pull recorded notes. Click to expand.';
+$string['dependencyblocked'] = 'Pull blocked — this spoke is missing dependencies the course needs:
+{$a}';
 $string['noinstances'] = 'No versions have been pulled onto this spoke yet.';
 $string['nopending'] = 'No pending version updates.';
 $string['nucleusspoke:pull'] = 'Pull a version of a course family onto this spoke';

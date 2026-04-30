@@ -110,6 +110,14 @@ class publisher {
         try {
             $localbackup = self::run_backup($course, $userid);
 
+            // ADR-021 Tier A — extract dependency manifest before the
+            // upload. Failure here is non-fatal (extractor returns a
+            // manifest with `extractor_error` set rather than
+            // throwing), so a parse hiccup never blocks a publish;
+            // spokes treat a manifest with an extractor_error as
+            // "unknown" and log a Tier C note.
+            $manifest = manifest_extractor::extract($localbackup);
+
             $response = cp_client::from_config()->post_file(
                 '/course-versions/' . rawurlencode($versionguid) . '/snapshot',
                 $localbackup
@@ -127,6 +135,7 @@ class publisher {
                 'id' => $versionid,
                 'snapshotref' => (string) $response['ref'],
                 'snapshothash' => (string) $response['hash'],
+                'manifest' => json_encode($manifest, JSON_UNESCAPED_SLASHES),
             ]);
 
             self::finalise_draft($family->id, $versionid, $course->id, $now);

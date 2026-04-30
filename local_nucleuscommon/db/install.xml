@@ -35,6 +35,7 @@
         <FIELD NAME="publishedbyid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Local Moodle user id of the publisher (on the hub). Informational on spokes."/>
         <FIELD NAME="timepublished" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="releasenotes" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Author-written summary of what changed. Required for minor and major; optional for patch."/>
+        <FIELD NAME="manifest" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="ADR-021 Tier A — JSON dependency manifest extracted at publish time from moodle_backup.xml. Lists the Moodle version + activity-mod plugin set the backup expects. Spokes consult before pulling. Null on legacy rows; spokes treat null as 'no manifest, allow pull but log'."/>
         <FIELD NAME="deprecated" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Hub-side flag: this version should no longer be pulled and existing instances should consider rollback or upgrade."/>
         <FIELD NAME="deprecatedreason" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>

@@ -61,5 +61,28 @@ function xmldb_local_nucleuscommon_upgrade(int $oldversion): bool {
         upgrade_plugin_savepoint(true, 2026042401, 'local', 'nucleuscommon');
     }
 
+    if ($oldversion < 2026043001) {
+        // ADR-021 Tier A — manifest column on the version table.
+        // Stores a JSON snapshot of the Moodle version + activity-mod
+        // plugin set the backup was taken with, so a spoke can refuse
+        // a pull cleanly when it would silently break courses.
+        $table = new xmldb_table('local_nucleuscommon_version');
+        $field = new xmldb_field(
+            'manifest',
+            XMLDB_TYPE_TEXT,
+            null,
+            null,
+            null,
+            null,
+            null,
+            'releasenotes'
+        );
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        upgrade_plugin_savepoint(true, 2026043001, 'local', 'nucleuscommon');
+    }
+
     return true;
 }

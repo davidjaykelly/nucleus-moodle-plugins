@@ -33,6 +33,7 @@ namespace local_nucleusspoke\version;
 
 use local_nucleuscommon\transport\cp_client;
 use local_nucleuscommon\events\publisher as event_publisher;
+use local_nucleusspoke\client\hub_client;
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -72,6 +73,19 @@ class puller {
         $familyrow = registry::upsert_family($family);
         $versionrow = registry::upsert_version($version, $familyrow->id);
 
+        // ADR-021 v1.1 — accumulate Tier C notes from preflight +
+        // restore precheck so we can persist them on the instance row
+        // (and, downstream, render them in the catalogue UI). Each
+        // entry is `{kind, detail}`. Tier A blockers still throw from
+        // preflight before this collector ever sees them.
+        $pullnotes = [];
+
+        // ADR-021 Tier A — pre-flight the manifest before downloading.
+        // Hub round-trip is cheap (small JSON, no .mbz transfer); the
+        // payoff is refusing pulls that would silently break a course
+        // *before* we waste bandwidth + restore-engine effort.
+        self::preflight_dependencies($version, $pullnotes);
+
         $mbzpath = self::download_snapshot($versionrow);
         try {
             $backupdir = self::extract_backup($mbzpath);
@@ -81,7 +95,8 @@ class puller {
                     $family,
                     $version,
                     $userid,
-                    self::resolve_target_category($targetcategoryid)
+                    self::resolve_target_category($targetcategoryid),
+                    $pullnotes
                 );
             } finally {
                 // Restore consumes the extracted tree; clean up whatever's left.
@@ -114,6 +129,10 @@ class puller {
             'pulledbyid' => $userid,
             'timecreated' => $now,
             'timemodified' => $now,
+            // Persist Tier C notes (manifest_checker observations +
+            // restore precheck warnings). Null when the pull was
+            // perfectly clean — UI uses absence to suppress the badge.
+            'pullnotes' => $pullnotes ? json_encode($pullnotes, JSON_UNESCAPED_SLASHES) : null,
         ]);
 
         // Staging pulls shouldn't resolve notifications — the operator
@@ -160,6 +179,118 @@ class puller {
             'timepulled' => $now,
             'state' => $staging ? 'staging' : 'active',
         ];
+    }
+
+    /**
+     * ADR-021 Tier A — fetch the version's manifest from the hub and
+     * refuse the pull cleanly if the local plugin set / Moodle major
+     * is incompatible. Throws a structured `dependencyblocked`
+     * exception listing every blocker; CP-side surfacing turns it
+     * into an actionable notification (see ADR-021 §v1 scope).
+     *
+     * Called BEFORE `download_snapshot` so we never spend bandwidth
+     * fetching a .mbz we're about to refuse.
+     *
+     * If the hub is unreachable for the describe call, we don't block
+     * the pull — that's a separate failure mode and bubbles via the
+     * download path's existing error handling. Treat preflight as
+     * best-effort defence in depth: when it speaks, listen; when it
+     * can't, fall through.
+     *
+     * @param array $version Version DTO as passed to ::pull().
+     * @param array $pullnotes Out-param. Tier C notes from preflight
+     *                         appended here for the caller to
+     *                         persist on the instance row (v1.1).
+     * @throws \moodle_exception When Tier A blockers are found.
+     */
+    private static function preflight_dependencies(array $version, array &$pullnotes): void {
+        $versionguid = (string) ($version['guid'] ?? '');
+        if ($versionguid === '') {
+            // Caller should never get here without a guid, but if it
+            // does, skip preflight rather than break the pull.
+            return;
+        }
+
+        try {
+            $describe = hub_client::default()->describe_version($versionguid);
+        } catch (\Throwable $e) {
+            // Hub round-trip failed. Log once at DEBUG_NORMAL and let
+            // the pull continue — Moodle's restore precheck is the
+            // second line of defence.
+            debugging(
+                'Nucleus preflight describe_version failed for ' . $versionguid . ': ' . $e->getMessage(),
+                DEBUG_NORMAL
+            );
+            return;
+        }
+
+        $check = manifest_checker::check($describe);
+
+        // Tier C notes carry forward to the instance row so the
+        // catalogue UI can show "this pull has N notes". Still emit
+        // a debug line so live troubleshooting via Moodle log viewer
+        // doesn't have to dig through the database.
+        if (!empty($check['notes'])) {
+            foreach ($check['notes'] as $note) {
+                $pullnotes[] = ['kind' => 'manifest_note', 'detail' => $note];
+                debugging('Nucleus preflight: ' . $note, DEBUG_NORMAL);
+            }
+        }
+
+        if (empty($check['blockers'])) {
+            return;
+        }
+
+        // Build a single human-readable summary for the operator while
+        // also passing the full structured blocker list as $debuginfo
+        // so the CP can serialise it onto the pull-status row. Each
+        // blocker has a `kind`, `detail`, and `remediation`; we
+        // concatenate detail+remediation for the human message.
+        $lines = [];
+        foreach ($check['blockers'] as $b) {
+            $lines[] = trim((string) ($b['detail'] ?? ''));
+            $lines[] = trim((string) ($b['remediation'] ?? ''));
+        }
+        $human = implode("\n", array_filter($lines));
+
+        // Emit a `course_pull_blocked.v1` event so the control plane
+        // can write a `course_pull_blocked` audit row + (eventually)
+        // a notification for the spoke's owning operator. Best-effort
+        // — a stalled Redis must not swallow the operator's
+        // dependency-blocked error message; the throw below is the
+        // primary signal.
+        try {
+            $spokeid = (string) (get_config('local_nucleuscommon', 'federationid') ?: 'unknown');
+            event_publisher::publish(
+                'course_pull_blocked.v1',
+                'spoke:' . $spokeid,
+                'broadcast',
+                [
+                    'versionguid' => $versionguid,
+                    'familyguid' => (string) ($version['familyguid'] ?? ''),
+                    'versionnumber' => (string) ($version['versionnumber'] ?? ''),
+                    'blockers' => $check['blockers'],
+                    'manifest_status' => $check['manifest_status'],
+                ]
+            );
+        } catch (\Throwable $emiterr) {
+            debugging(
+                'course_pull_blocked event emission failed: ' . $emiterr->getMessage(),
+                DEBUG_NORMAL
+            );
+        }
+
+        throw new \moodle_exception(
+            'dependencyblocked',
+            'local_nucleusspoke',
+            '',
+            $human,
+            json_encode([
+                'kind' => 'dependencyblocked',
+                'versionguid' => $versionguid,
+                'blockers' => $check['blockers'],
+            ], JSON_UNESCAPED_SLASHES)
+        );
     }
 
     /**
@@ -244,7 +375,8 @@ class puller {
         array $family,
         array $version,
         int $userid,
-        int $categoryid
+        int $categoryid,
+        array &$pullnotes
     ): int {
         $shortname = self::uniquify_shortname(
             $family['slug'] . '-v' . $version['versionnumber']
@@ -294,9 +426,18 @@ class puller {
                 throw new \moodle_exception('pullfailed', 'local_nucleusspoke', '', $msg, $msg);
             }
             if (!empty($precheck['warnings'])) {
-                // Best-effort visibility — log to debugging() so it
-                // lands in the Moodle log viewer; future ADR-021 work
-                // surfaces these in the catalogue UI proper.
+                // ADR-021 v1.1 — accumulate restore precheck warnings
+                // onto the instance row. Each warning is one Tier C
+                // note. Moodle hands warnings as a list of strings
+                // (typed mostly as `'general'` notices); we wrap as
+                // `kind=restore_warning` so the catalogue UI can
+                // distinguish them from manifest_note entries.
+                foreach ($precheck['warnings'] as $warning) {
+                    $pullnotes[] = [
+                        'kind' => 'restore_warning',
+                        'detail' => is_string($warning) ? $warning : json_encode($warning),
+                    ];
+                }
                 debugging(
                     'Nucleus pull warnings (proceeding anyway): '
                     . json_encode($precheck['warnings']),

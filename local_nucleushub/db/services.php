@@ -98,6 +98,12 @@ $functions = [
         'type'        => 'write',
         'ajax'        => false,
     ],
+    'local_nucleushub_describe_version' => [
+        'classname'   => 'local_nucleushub\external\describe_version',
+        'description' => 'ADR-021 Tier A: return the dependency manifest for a published version so a spoke can pre-flight before downloading.',
+        'type'        => 'read',
+        'ajax'        => false,
+    ],
 ];
 
 $services = [
@@ -110,6 +116,7 @@ $services = [
             'local_nucleushub_request_enrolment',
             'local_nucleushub_revoke_enrolment',
             'local_nucleushub_revoke_user',
+            'local_nucleushub_describe_version',
         ],
         'restrictedusers' => 1,
         'enabled'         => 1,
@@ -135,6 +142,7 @@ $services = [
             'local_nucleushub_mark_deprecated',
             'local_nucleushub_list_projusers',
             'local_nucleushub_revoke_user',
+            'local_nucleushub_describe_version',
             'local_nucleuscommon_get_tenant_stats',
             'local_nucleuscommon_set_federation_mode',
             'local_nucleuscommon_provision_admin_account',

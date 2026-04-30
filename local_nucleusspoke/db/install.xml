@@ -34,6 +34,7 @@
         <FIELD NAME="pulledbyid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Local Moodle user id of the spoke admin who triggered the pull."/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="pullnotes" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="ADR-021 v1.1 — JSON list of Tier C notes captured at pull time: manifest_checker observations (e.g. older spoke plugin version) plus Moodle restore precheck warnings (e.g. backup-from-newer-Moodle compatibility note). Surfaced in the spoke's catalogue UI."/>
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>

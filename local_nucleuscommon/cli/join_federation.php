@@ -121,13 +121,36 @@ if (!empty($existingbase) && !empty($existingsecret) && empty($options['force'])
     );
 }
 
-// 2. Register against the hub.
+// 2. Mint the CP→spoke web-service token *before* registering. The
+//    register response will store the same token on the CP's spoke
+//    row, which is what every CP→spoke endpoint (course-instances,
+//    preview, content-pull) authenticates against. Provisioning here
+//    avoids the manual "authorise admin → create token" dance the
+//    operator otherwise has to do via the Moodle admin UI.
+//    Idempotent: re-running join with the same Moodle reuses the
+//    existing token.
+cli_writeln('Provisioning control-plane WS token...');
+try {
+    $cpwstoken = \local_nucleuscommon\token\cp_provisioner::ensure_token('nucleus_cp_spoke');
+} catch (\Throwable $e) {
+    cli_error(
+        'Failed to mint CP web-service token: ' . $e->getMessage() . "\n"
+        . "Check that local_nucleusspoke is installed and upgraded\n"
+        . "(it registers the `nucleus_cp_spoke` external service)."
+    );
+}
+
+// 3. Register against the hub.
 $registerurl = rtrim($options['hub-url'], '/') . '/external-spokes/register';
 cli_writeln("Registering with {$registerurl}...");
 
 $body = json_encode([
     'token'         => $options['token'],
     'spokeBaseUrl'  => $CFG->wwwroot,
+    // Allows the CP to call back into this Moodle (preview pulls,
+    // course-instance lookups, etc). Validated server-side as 32 hex
+    // chars before persistence.
+    'cpwstoken'     => $cpwstoken,
     'pluginVersions' => [
         'common' => get_config('local_nucleuscommon', 'version'),
         'spoke'  => get_config('local_nucleusspoke', 'version'),

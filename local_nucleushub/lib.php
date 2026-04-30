@@ -43,6 +43,14 @@ function local_nucleushub_extend_settings_navigation(
     if (!has_capability('local/nucleushub:publish', context_system::instance())) {
         return;
     }
+    // The hub plugin is baked into every Moodle image (hub + spoke
+    // share a Dockerfile), so capability alone isn't enough — a
+    // Moodle wired as a spoke shouldn't surface "Publish a version"
+    // anywhere. `hubwwwroot` set on local_nucleusspoke means we point
+    // at another hub, i.e. we ARE a spoke. Skip in that case.
+    if ((string) get_config('local_nucleusspoke', 'hubwwwroot') !== '') {
+        return;
+    }
     // Front page isn't a versionable "course" in any useful sense.
     if ($context->instanceid == SITEID) {
         return;
@@ -76,12 +84,22 @@ function local_nucleushub_statusbar_widget(): ?array {
     global $PAGE, $DB;
 
     // Only show on course-view pages and only when the caller has
-    // publish rights (hub_admin+). On spokes that happen to have
-    // the hub plugin installed we short-circuit via the spokes table.
+    // publish rights (hub_admin+).
     if (strpos((string) $PAGE->pagetype, 'course-view-') !== 0) {
         return null;
     }
     if (!has_capability('local/nucleushub:publish', context_system::instance())) {
+        return null;
+    }
+    // The hub plugin ships in every Moodle image (the Dockerfile
+    // bakes both plugins in regardless of the pod's role), so a
+    // Moodle wired as a spoke would otherwise see "Publish a version"
+    // and "Add to federation" injected on every course page. The
+    // canonical "am I a spoke?" check is `hubwwwroot` being set —
+    // when present, this Moodle points at another hub and is
+    // therefore a spoke; the hub-side widgets must stay quiet.
+    // Same gate as nucleuscommon/lib.php uses for the global nav.
+    if ((string) get_config('local_nucleusspoke', 'hubwwwroot') !== '') {
         return null;
     }
     // We don't gate on spoke count: a fresh hub with no spokes still

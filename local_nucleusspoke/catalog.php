@@ -390,6 +390,18 @@ echo <<<'CSS'
   font-size: 11.5px;
   font-weight: 500;
 }
+.nfcat-locked-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px;
+  background: #f3e8ff;
+  color: #6b21a8;
+  border: 1px solid #d8b4fe;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+  margin-left: 4px;
+  cursor: help;
+}
 /* ADR-021 v1.1 — Tier C notes badge. <details>/<summary> gives a
    click-to-expand affordance with no JS. Hovering the chip shows
    the count summary in a native tooltip. */
@@ -590,8 +602,18 @@ foreach ($catalog as $family) {
     if ($latest) {
         echo '<div class="nfcat-version-line">'
             . '<span class="nfcat-vnum">v' . s($latest['versionnumber']) . '</span>'
-            . '<span class="nfcat-vsev">' . s($latest['severity']) . '</span>'
-            . '<span class="nfcat-meta" style="margin-left: auto">'
+            . '<span class="nfcat-vsev">' . s($latest['severity']) . '</span>';
+        // Content-distribution lock chip — when the hub published
+        // this version with the edit-lock flag, surface it here so
+        // the spoke admin knows what they're pulling before they
+        // pull it.
+        if (!empty($latest['lockedforspokeedit'])) {
+            echo '<span class="nfcat-locked-chip" title="'
+                . s(get_string('catalog_locked_title', 'local_nucleusspoke')) . '">'
+                . '🔒 ' . s(get_string('catalog_locked_chip', 'local_nucleusspoke'))
+                . '</span>';
+        }
+        echo '<span class="nfcat-meta" style="margin-left: auto">'
                 . get_string('catalog_publishedwhen', 'local_nucleusspoke',
                     format_time(time() - (int) $latest['timepublished']))
             . '</span>'

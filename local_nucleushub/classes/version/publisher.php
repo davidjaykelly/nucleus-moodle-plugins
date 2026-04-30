@@ -55,7 +55,12 @@ class publisher {
      * @param string|null $releasenotes Optional release notes (required for minor+).
      * @param string|null $familyguid If set, publish into the named family; otherwise find-by-course-or-create.
      * @param int $userid Local user id of the publisher.
-     * @return array Version metadata: ['familyguid', 'versionguid', 'versionnumber', 'snapshotref', 'snapshothash', 'size', 'timepublished'].
+     * @param bool $lockedforspokeedit When true, spokes that pull this
+     *                                 version apply capability overrides
+     *                                 at restore so the local course is
+     *                                 read-only for editingteacher.
+     *                                 Defaults to false (legacy behaviour).
+     * @return array Version metadata: ['familyguid', 'versionguid', 'versionnumber', 'snapshotref', 'snapshothash', 'size', 'timepublished', 'lockedforspokeedit'].
      * @throws \moodle_exception
      */
     public static function publish(
@@ -63,7 +68,8 @@ class publisher {
         string $severity,
         ?string $releasenotes,
         ?string $familyguid,
-        int $userid
+        int $userid,
+        bool $lockedforspokeedit = false
     ): array {
         global $DB;
 
@@ -103,6 +109,7 @@ class publisher {
             'releasenotes' => $releasenotes !== null ? trim($releasenotes) : null,
             'deprecated' => 0,
             'deprecatedreason' => null,
+            'lockedforspokeedit' => $lockedforspokeedit ? 1 : 0,
             'timecreated' => $now,
         ]);
 
@@ -166,6 +173,7 @@ class publisher {
                             'hubcourseid' => (int) $course->id,
                             'timepublished' => $now,
                             'releasenotes' => $releasenotes,
+                            'lockedforspokeedit' => $lockedforspokeedit,
                         ],
                     ]
                 );
@@ -184,6 +192,7 @@ class publisher {
                 'snapshothash' => (string) $response['hash'],
                 'size' => (int) $response['size'],
                 'timepublished' => $now,
+                'lockedforspokeedit' => $lockedforspokeedit,
             ];
         } catch (\Throwable $e) {
             // Roll back the orphan version row so the next publish

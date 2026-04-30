@@ -84,5 +84,29 @@ function xmldb_local_nucleuscommon_upgrade(int $oldversion): bool {
         upgrade_plugin_savepoint(true, 2026043001, 'local', 'nucleuscommon');
     }
 
+    if ($oldversion < 2026043003) {
+        // Content-distribution lock — when set on a published version,
+        // spokes apply capability overrides at the restored course
+        // context to make the local course read-only for the
+        // editingteacher role. Default 0 preserves legacy behaviour;
+        // mirrored to spokes via registry::upsert_version.
+        $table = new xmldb_table('local_nucleuscommon_version');
+        $field = new xmldb_field(
+            'lockedforspokeedit',
+            XMLDB_TYPE_INTEGER,
+            '1',
+            null,
+            XMLDB_NOTNULL,
+            null,
+            0,
+            'deprecatedreason'
+        );
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        upgrade_plugin_savepoint(true, 2026043003, 'local', 'nucleuscommon');
+    }
+
     return true;
 }

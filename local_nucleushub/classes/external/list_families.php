@@ -81,6 +81,7 @@ class list_families extends external_api {
                 'releasenotes' => (string) ($v->releasenotes ?? ''),
                 'deprecated' => (bool) $v->deprecated,
                 'deprecatedreason' => (string) ($v->deprecatedreason ?? ''),
+                'lockedforspokeedit' => (int) ($v->lockedforspokeedit ?? 0) === 1,
             ];
         }
 
@@ -137,6 +138,7 @@ class list_families extends external_api {
                 'releasenotes' => new external_value(PARAM_RAW, 'Author-written notes.'),
                 'deprecated' => new external_value(PARAM_BOOL, 'Hub-side deprecation flag.'),
                 'deprecatedreason' => new external_value(PARAM_TEXT, 'Human reason if deprecated.'),
+                'lockedforspokeedit' => new external_value(PARAM_BOOL, 'Spokes pulling this version apply edit-lock at restore.'),
             ])),
         ]));
     }

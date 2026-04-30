@@ -67,6 +67,12 @@ class publish_version extends external_api {
                 VALUE_DEFAULT,
                 ''
             ),
+            'lockedforspokeedit' => new external_value(
+                PARAM_BOOL,
+                'When true, spokes that pull this version apply capability overrides at the restored course context (read-only for editingteacher). Default false.',
+                VALUE_DEFAULT,
+                false
+            ),
         ]);
     }
 
@@ -84,7 +90,8 @@ class publish_version extends external_api {
         int $hubcourseid,
         string $severity,
         string $releasenotes,
-        string $familyguid
+        string $familyguid,
+        bool $lockedforspokeedit = false
     ): array {
         global $USER;
 
@@ -93,6 +100,7 @@ class publish_version extends external_api {
             'severity' => $severity,
             'releasenotes' => $releasenotes,
             'familyguid' => $familyguid,
+            'lockedforspokeedit' => $lockedforspokeedit,
         ]);
 
         // Auth: db/services.php declares 'local/nucleushub:publish'
@@ -110,7 +118,8 @@ class publish_version extends external_api {
             (string) $params['severity'],
             $notes,
             $guid,
-            (int) $USER->id
+            (int) $USER->id,
+            !empty($params['lockedforspokeedit'])
         );
     }
 
@@ -128,6 +137,7 @@ class publish_version extends external_api {
             'snapshothash' => new external_value(PARAM_ALPHANUMEXT, 'SHA-256 hex of the snapshot.'),
             'size' => new external_value(PARAM_INT, 'Snapshot size in bytes.'),
             'timepublished' => new external_value(PARAM_INT, 'Unix time of publish completion.'),
+            'lockedforspokeedit' => new external_value(PARAM_BOOL, 'Echo of the input flag.'),
         ]);
     }
 }

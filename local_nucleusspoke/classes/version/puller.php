@@ -111,6 +111,22 @@ class puller {
             }
         }
 
+        // Content-distribution lock — apply capability overrides at
+        // the new course context so the local editingteacher can't
+        // modify activities, sections, or settings. Site admins keep
+        // their global override and can unlock manually if needed.
+        // Skipped (and a Tier C note added) when the version row was
+        // mirrored from an older event payload that didn't carry the
+        // flag — current behaviour is honoured-only-when-set.
+        if (!empty($versionrow->lockedforspokeedit)) {
+            self::apply_edit_lock((int) $newcourseid);
+            $pullnotes[] = [
+                'kind' => 'edit_locked',
+                'detail' => 'This version is published with the spoke-edit lock; '
+                    . 'editingteacher can\'t modify the local course content.',
+            ];
+        }
+
         // Staging pulls hide the restored course from students until
         // an operator promotes it. Teachers still see it via their
         // course edit role — perfect for "kick the tyres before
@@ -471,6 +487,62 @@ class puller {
      * Any notification for this (family, version) is now resolved
      * by the pull. Idempotent — a re-pull is a no-op here.
      *
+     * Apply the content-distribution edit lock to a freshly-restored
+     * course. Capabilities listed here cover the standard editing
+     * surface (course settings, sections, activity manage,
+     * visibility, file management). Site admin keeps their global
+     * override — they can manually toggle these off via
+     * Site administration if they need emergency unlock.
+     *
+     * Idempotent. Safe to re-run on the same course; each
+     * `role_change_permission` call replaces any existing override
+     * for the same (capability, role, context).
+     *
+     * @param int $courseid Local mdl_course.id of the just-restored course.
+     */
+    private static function apply_edit_lock(int $courseid): void {
+        global $DB;
+
+        // editingteacher is the canonical "can edit course content"
+        // role on every Moodle install. Other roles (manager,
+        // coursecreator) have CAP_PREVENT inherited or contextually,
+        // and overriding them at course level is the wrong shape —
+        // they're typically site-wide and shouldn't be tenant-locked.
+        $role = $DB->get_record('role', ['shortname' => 'editingteacher']);
+        if (!$role) {
+            // Highly unusual — Moodle ships editingteacher in core. If
+            // a site really has removed it, skip; the operator will
+            // have a custom role that we can't auto-target.
+            debugging(
+                'Nucleus edit-lock: editingteacher role not found; lock not applied to course '
+                    . $courseid,
+                DEBUG_NORMAL
+            );
+            return;
+        }
+
+        $context = \context_course::instance($courseid);
+        // Capabilities to PREVENT — keeps reads + grading working,
+        // blocks structural edits.
+        $capabilities = [
+            'moodle/course:update',
+            'moodle/course:manageactivities',
+            'moodle/course:activityvisibility',
+            'moodle/course:sectionvisibility',
+            'moodle/course:movesections',
+            'moodle/course:managefiles',
+            'moodle/course:changefullname',
+            'moodle/course:changeshortname',
+            'moodle/course:changesummary',
+        ];
+        foreach ($capabilities as $cap) {
+            // Idempotent: assigns CAP_PREVENT regardless of prior
+            // state. Doesn't throw on unknown caps (they just no-op).
+            role_change_permission($role->id, $context, $cap, CAP_PREVENT);
+        }
+    }
+
+    /**
      * @param int $familyid
      * @param int $versionid
      * @param int $userid

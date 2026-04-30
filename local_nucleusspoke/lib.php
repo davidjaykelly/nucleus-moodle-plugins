@@ -131,6 +131,17 @@ function local_nucleusspoke_statusbar_widget(): ?array {
             'title' => (string) ($version->deprecatedreason ?? ''),
         ];
     }
+    // Content-distribution lock segment — purple/accent tone so it
+    // reads as a state badge rather than an alert. Only shown when
+    // the local instance was pulled from a locked version.
+    if ((int) ($version->lockedforspokeedit ?? 0) === 1) {
+        $segments[] = [
+            'icon' => 'fa-lock',
+            'label' => get_string('statusbar_spoke_locked', 'local_nucleusspoke'),
+            'tone' => 'accent',
+            'title' => get_string('statusbar_spoke_locked_title', 'local_nucleusspoke'),
+        ];
+    }
 
     // Expanded panel — multi-card so it fills horizontal space on
     // wide screens and stacks on narrow ones. Cards mirror the hub
@@ -289,6 +300,17 @@ function local_nucleusspoke_statusbar_widget(): ?array {
                 'url' => (new moodle_url('/local/nucleusspoke/versions.php'))->out(false),
                 'icon' => 'fa-list',
             ],
+        ];
+    } else if ((int) ($version->lockedforspokeedit ?? 0) === 1) {
+        // Distinct tone (info, not warn) — locked is a state, not an
+        // alert. Editing teachers seeing edit buttons disappear should
+        // see *why* before they hit support.
+        $banner = [
+            'tone' => 'info',
+            'icon' => 'fa-lock',
+            'body' => get_string('banner_locked_body', 'local_nucleusspoke', (object) [
+                'version' => s($version->versionnumber),
+            ]),
         ];
     }
 

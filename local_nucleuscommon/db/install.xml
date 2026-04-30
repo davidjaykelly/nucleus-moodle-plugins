@@ -38,6 +38,7 @@
         <FIELD NAME="manifest" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="ADR-021 Tier A — JSON dependency manifest extracted at publish time from moodle_backup.xml. Lists the Moodle version + activity-mod plugin set the backup expects. Spokes consult before pulling. Null on legacy rows; spokes treat null as 'no manifest, allow pull but log'."/>
         <FIELD NAME="deprecated" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Hub-side flag: this version should no longer be pulled and existing instances should consider rollback or upgrade."/>
         <FIELD NAME="deprecatedreason" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="lockedforspokeedit" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Content-distribution flag — when set, the spoke applies capability overrides at the restored course context to block editingteacher edits. Set at publish time on the hub, mirrored to spokes. Default 0 (editable) preserves the prior behaviour for federations that don't need this."/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
       </FIELDS>
       <KEYS>

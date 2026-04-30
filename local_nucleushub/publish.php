@@ -104,6 +104,22 @@ class local_nucleushub_publish_form extends moodleform {
         $mform->setType('notes', PARAM_RAW);
         $mform->addHelpButton('notes', 'releasenotes', 'local_nucleushub');
 
+        // Content-distribution lock — opt-in. When checked, spokes
+        // pulling this version apply capability overrides at the
+        // restored course context so editingteacher can't modify
+        // content. Useful for federations that distribute hub-owned
+        // material verbatim. Default off.
+        $mform->addElement(
+            'advcheckbox',
+            'lockedforspokeedit',
+            get_string('publish_lockedit_label', 'local_nucleushub'),
+            get_string('publish_lockedit_caption', 'local_nucleushub'),
+            ['group' => 1],
+            [0, 1]
+        );
+        $mform->setType('lockedforspokeedit', PARAM_INT);
+        $mform->setDefault('lockedforspokeedit', 0);
+
         $mform->addElement('hidden', 'id', $cd['id']);
         $mform->setType('id', PARAM_INT);
 
@@ -187,7 +203,8 @@ if ($data = $form->get_data()) {
             (string) $data->severity,
             trim((string) $data->notes) !== '' ? trim((string) $data->notes) : null,
             null,
-            (int) $USER->id
+            (int) $USER->id,
+            (int) ($data->lockedforspokeedit ?? 0) === 1
         );
         redirect(
             $pageurl,

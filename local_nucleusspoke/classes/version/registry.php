@@ -133,6 +133,11 @@ class registry {
                     : null,
                 'deprecated' => 0,
                 'deprecatedreason' => null,
+                // Mirror the hub's edit-lock flag so subsequent reads
+                // (catalogue chip, course-page banner) can act on it
+                // without re-fetching describe_version. Defaults to 0
+                // when the publish event predates the field.
+                'lockedforspokeedit' => !empty($dto['lockedforspokeedit']) ? 1 : 0,
                 'timecreated' => $now,
             ]);
         } catch (\dml_write_exception $e) {

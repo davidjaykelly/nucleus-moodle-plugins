@@ -73,7 +73,7 @@ class describe_version extends external_api {
         $row = $DB->get_record(
             'local_nucleuscommon_version',
             ['guid' => $params['versionguid']],
-            'id, guid, versionnumber, hubcourseid, manifest, deprecated, deprecatedreason, timepublished',
+            'id, guid, versionnumber, hubcourseid, manifest, deprecated, deprecatedreason, lockedforspokeedit, timepublished',
             IGNORE_MISSING
         );
         if (!$row) {
@@ -111,6 +111,10 @@ class describe_version extends external_api {
             // have to commit to a fixed wire schema before we know
             // which Tier C fields will land. Spoke parses on receipt.
             'manifest' => $manifestjson,
+            // Content-distribution lock — when true, the spoke applies
+            // capability overrides at restore time so the local course
+            // is read-only for editingteacher. Default false.
+            'lockedforspokeedit' => (int) ($row->lockedforspokeedit ?? 0) === 1,
         ];
     }
 
@@ -129,6 +133,7 @@ class describe_version extends external_api {
             'timepublished' => new external_value(PARAM_INT, 'Unix time of publish completion.'),
             'hasmanifest' => new external_value(PARAM_BOOL, 'False for legacy rows published pre-ADR-021.'),
             'manifest' => new external_value(PARAM_RAW, 'JSON-encoded dependency manifest, or empty string when hasmanifest=false.'),
+            'lockedforspokeedit' => new external_value(PARAM_BOOL, 'When true, the spoke must apply edit-lock capability overrides at restore.'),
         ]);
     }
 }

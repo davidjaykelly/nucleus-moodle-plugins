@@ -156,6 +156,7 @@ $versiondto = [
     'hubcourseid' => (int) $versionrow->hubcourseid,
     'timepublished' => (int) $versionrow->timepublished,
     'releasenotes' => $versionrow->releasenotes,
+    'lockedforspokeedit' => (int) ($versionrow->lockedforspokeedit ?? 0) === 1,
 ];
 
 cli_writeln("Pulling {$familyrow->slug} v{$versionrow->versionnumber} ...");

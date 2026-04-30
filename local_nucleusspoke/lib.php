@@ -26,6 +26,186 @@
 defined('MOODLE_INTERNAL') || die();
 
 /**
+ * Is the given course backed by a locked-from-edit federation pull?
+ *
+ * Cheap single-row join: instance → version → lockedforspokeedit.
+ * Returns false when the course isn't a federation instance at all
+ * (no row in local_nucleusspoke_instance), or when the source
+ * version's lock flag is 0.
+ *
+ * @param int $courseid mdl_course.id
+ * @return bool
+ */
+function local_nucleusspoke_course_is_locked(int $courseid): bool {
+    global $DB;
+    if ($courseid <= 0 || $courseid === (int) SITEID) {
+        return false;
+    }
+    $sql = "SELECT v.lockedforspokeedit
+              FROM {local_nucleusspoke_instance} i
+              JOIN {local_nucleuscommon_version} v ON v.id = i.versionid
+             WHERE i.localcourseid = :courseid";
+    $row = $DB->get_record_sql($sql, ['courseid' => $courseid], IGNORE_MISSING);
+    return $row && (int) $row->lockedforspokeedit === 1;
+}
+
+/**
+ * Federation-lock UI injection. Fires on every page render via the
+ * top-of-body callback (which Moodle 5 still invokes legacy-style
+ * for plugins — the html-head and http-headers legacy callbacks are
+ * NOT reliably called on Moodle 5+, so we put everything here).
+ *
+ * Three jobs:
+ *   1. Universal banner so any visitor — including students and
+ *      editing teachers without the federation-operator capability —
+ *      sees that this course is hub-distributed.
+ *   2. CSS that hides edit-mode toggles + add-activity buttons +
+ *      section/activity action menus, scoped via `body.editing` and
+ *      a `.local-nucleus-locked` class added by the inline script.
+ *   3. JS that immediately strips `edit=on` from the URL if the
+ *      user landed in edit mode (e.g. the URL was bookmarked) and
+ *      reloads — belt-and-braces with the capability overrides.
+ *
+ * Skipped on login/maintenance/redirect pagelayouts.
+ *
+ * @return string HTML fragment to inject at body-top.
+ */
+function local_nucleusspoke_before_standard_top_of_body_html(): string {
+    global $PAGE;
+    $courseid = (int) ($PAGE->course->id ?? 0);
+    if (!local_nucleusspoke_course_is_locked($courseid)) {
+        return '';
+    }
+    if (in_array($PAGE->pagelayout, ['login', 'maintenance', 'redirect'], true)) {
+        return '';
+    }
+
+    $banner = '<div class="local-nucleus-lockedbanner" role="status" aria-live="polite">'
+        . '<i class="fa fa-lock" aria-hidden="true"></i>'
+        . '<span>'
+        . s(get_string('locked_banner_body', 'local_nucleusspoke'))
+        . '</span>'
+        . '</div>';
+
+    $css = <<<'CSS'
+<style id="local-nucleusspoke-lockcss">
+/* Universal banner — purple, info-tone, sits above the course content. */
+.local-nucleus-lockedbanner {
+  display: flex; align-items: center; gap: 8px;
+  margin: 0 0 12px 0; padding: 10px 14px;
+  font-size: 13px; line-height: 1.5;
+  color: #1d2326; background: #f3e8ff;
+  border: 1px solid #d8b4fe;
+  border-left: 3px solid #7e22ce;
+  border-radius: 4px;
+}
+.local-nucleus-lockedbanner i { color: #6b21a8; font-size: 13px; }
+
+/* Hide the edit-mode toggle in every theme variant Moodle ships. */
+[data-region="edit-switch"],
+.editmode-switch-form,
+form[data-purpose="editmode"],
+form[action*="editmode.php"],
+a[href*="edit=on"],
+a[href*="edit=off"] {
+  display: none !important;
+}
+
+/* If the page already loaded in edit mode (URL param, prior session
+   state) hide every editing affordance. body.editing is Moodle's
+   own marker; the lock class is ours. */
+body.editing .section_action_menu,
+body.editing .activity-actions,
+body.editing .add-an-activity-or-resource,
+body.editing [data-action="add-content"],
+body.editing [data-action="add-activity-or-resource"],
+body.editing [data-region="activity-action-menu"],
+body.editing [data-region="section-action-menu"],
+body.editing .editing_section,
+body.editing .editing_move,
+body.editing .moveup,
+body.editing .movedown,
+body.local-nucleus-locked .add-an-activity-or-resource,
+body.local-nucleus-locked [data-action="add-content"],
+body.local-nucleus-locked [data-action="add-activity-or-resource"] {
+  display: none !important;
+}
+
+/* Page-header lock badge — themes vary on the header selector, so
+   we list a few. The injected JS adds the badge once we can read
+   the actual DOM. */
+.local-nucleus-lockedbadge {
+  display: inline-flex; align-items: center; gap: 4px;
+  margin-left: 12px;
+  padding: 3px 10px;
+  background: #f3e8ff;
+  color: #6b21a8;
+  border: 1px solid #d8b4fe;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  vertical-align: middle;
+}
+
+@media print {
+  .local-nucleus-lockedbanner,
+  .local-nucleus-lockedbadge { display: none; }
+}
+</style>
+CSS;
+
+    // Stamp the body class + drop a "🔒 locked" badge into the
+    // page header. If the page was loaded with `?edit=on`, strip
+    // the param + reload so edit mode goes away — JS counterpart
+    // to the (Moodle-5-broken) before_http_headers approach.
+    $js = <<<'JS'
+<script>
+(function () {
+  function init() {
+    document.body.classList.add('local-nucleus-locked');
+
+    // Find the course title element and append a lock badge.
+    // Themes vary; first-match wins.
+    var headerSelectors = [
+      '.page-header-headings h1',
+      'h1[data-test="page-title"]',
+      '.page-context-header h1',
+      'h1.h2',
+    ];
+    for (var i = 0; i < headerSelectors.length; i++) {
+      var h = document.querySelector(headerSelectors[i]);
+      if (h && !h.querySelector('.local-nucleus-lockedbadge')) {
+        var badge = document.createElement('span');
+        badge.className = 'local-nucleus-lockedbadge';
+        badge.textContent = '🔒 federation-locked';
+        h.appendChild(badge);
+        break;
+      }
+    }
+
+    // If we landed with edit mode on, strip the param + reload.
+    // No-op when edit=on isn't in the URL.
+    try {
+      var url = new URL(window.location.href);
+      if (url.searchParams.get('edit') === 'on') {
+        url.searchParams.set('edit', 'off');
+        window.location.replace(url.toString());
+      }
+    } catch (e) { /* IE / sandboxed iframe — silently skip. */ }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+</script>
+JS;
+
+    return $css . $banner . $js;
+}
+
+/**
  * Spoke-side context widget rendered into the Nucleus status bar
  * (ADR-014 Phase 1, UI pass). Called from local_nucleuscommon's
  * status-bar renderer.
@@ -301,18 +481,13 @@ function local_nucleusspoke_statusbar_widget(): ?array {
                 'icon' => 'fa-list',
             ],
         ];
-    } else if ((int) ($version->lockedforspokeedit ?? 0) === 1) {
-        // Distinct tone (info, not warn) — locked is a state, not an
-        // alert. Editing teachers seeing edit buttons disappear should
-        // see *why* before they hit support.
-        $banner = [
-            'tone' => 'info',
-            'icon' => 'fa-lock',
-            'body' => get_string('banner_locked_body', 'local_nucleusspoke', (object) [
-                'version' => s($version->versionnumber),
-            ]),
-        ];
     }
+    // Note: there's no locked-state banner here. The lock signal is
+    // surfaced via local_nucleusspoke_before_standard_top_of_body_html,
+    // which fires for *everyone* including students — covers editing
+    // teachers who don't have the federation-operator capability the
+    // status bar requires. Two banners on the same topic would just
+    // be noise.
 
     return [
         'segments' => $segments,

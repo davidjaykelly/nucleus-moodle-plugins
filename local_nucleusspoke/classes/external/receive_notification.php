@@ -64,6 +64,12 @@ class receive_notification extends external_api {
                     VALUE_DEFAULT,
                     ''
                 ),
+                'lockedforspokeedit' => new external_value(
+                    PARAM_BOOL,
+                    'Hub published with the spoke-edit lock — applied at restore time on subsequent pull.',
+                    VALUE_DEFAULT,
+                    false
+                ),
             ]),
         ]);
     }

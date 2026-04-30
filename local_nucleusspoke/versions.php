@@ -75,6 +75,7 @@ if ($pullid) {
                 'hubcourseid' => (int) $version->hubcourseid,
                 'timepublished' => (int) $version->timepublished,
                 'releasenotes' => $version->releasenotes,
+                'lockedforspokeedit' => (int) ($version->lockedforspokeedit ?? 0) === 1,
             ],
             1,
             (int) $USER->id,
@@ -189,6 +190,7 @@ if ($rollbackinstanceid) {
                 'hubcourseid' => (int) $target->hubcourseid,
                 'timepublished' => (int) $target->timepublished,
                 'releasenotes' => $target->releasenotes,
+                'lockedforspokeedit' => (int) ($target->lockedforspokeedit ?? 0) === 1,
             ],
             1,
             (int) $USER->id

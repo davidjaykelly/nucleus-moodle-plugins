@@ -67,6 +67,12 @@ class pull_version extends external_api {
                     VALUE_DEFAULT,
                     ''
                 ),
+                'lockedforspokeedit' => new external_value(
+                    PARAM_BOOL,
+                    'Hub published with the spoke-edit lock — spoke applies CAP_PREVENT overrides + UI lock at restore.',
+                    VALUE_DEFAULT,
+                    false
+                ),
             ], 'Version descriptor.'),
             'targetcategoryid' => new external_value(
                 PARAM_INT,

@@ -98,6 +98,7 @@ if ($pullfamily !== '' && $pullversion !== '' && $catalog !== null) {
                 'hubcourseid' => (int) $version['hubcourseid'],
                 'timepublished' => (int) $version['timepublished'],
                 'releasenotes' => $version['releasenotes'] ?? '',
+                'lockedforspokeedit' => !empty($version['lockedforspokeedit']),
             ],
             1,
             (int) $USER->id,

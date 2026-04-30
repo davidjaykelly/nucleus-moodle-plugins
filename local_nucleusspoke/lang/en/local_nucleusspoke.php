@@ -96,6 +96,7 @@ $string['history'] = 'History';
 $string['hubunreachable'] = 'Federation hub is not reachable: {$a}';
 $string['catalog_blocked_back'] = 'Back to catalogue';
 $string['banner_locked_body'] = 'This course is running v{$a->version}, which the hub published with edit-lock. Editing-teacher capabilities have been overridden so content can\'t be modified locally. Site admin can manually revert via Roles → Permissions if needed.';
+$string['locked_banner_body'] = 'This course is distributed by a federation hub. Local edits are disabled — content stays in sync with the hub.';
 $string['catalog_locked_chip'] = 'locked';
 $string['catalog_locked_title'] = 'This version is published with the spoke-edit lock — once pulled, the local course is read-only for editing teachers.';
 $string['statusbar_spoke_locked'] = 'edit-locked';

@@ -51,5 +51,20 @@
         <INDEX NAME="family_timepublished" UNIQUE="false" FIELDS="familyid, timepublished" COMMENT="Ordered listing of a family's versions."/>
       </INDEXES>
     </TABLE>
+    <TABLE NAME="local_nucleuscommon_usage" COMMENT="People figures the record_usage task takes every 10 minutes, for the usage graphs in the Nucleus portal. Counts only, no personal data. Rows older than 90 days are deleted.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="When the sample was taken."/>
+        <FIELD NAME="users" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Confirmed accounts that aren't deleted, excluding the guest account (the rule get_tenant_stats uses)."/>
+        <FIELD NAME="online" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Accounts that aren't deleted, excluding the guest account, seen in the last 5 minutes."/>
+        <FIELD NAME="active24h" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Accounts that aren't deleted, excluding the guest account, seen in the last 24 hours (the rule get_tenant_stats uses)."/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="timecreated" UNIQUE="false" FIELDS="timecreated"/>
+      </INDEXES>
+    </TABLE>
   </TABLES>
 </XMLDB>

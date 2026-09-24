@@ -15,21 +15,23 @@
 // along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
- * Version metadata for local_nucleuscommon.
- *
- * Shared utilities used by both hub and spoke federation plugins: token auth,
- * HTTP transport, event publisher, federation settings and the Nucleus bar.
+ * Scheduled tasks for local_nucleuscommon.
  *
  * @package    local_nucleuscommon
  * @copyright  2026 David Kelly <contact@dklabs.co.uk>
  * @license    https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @author     David Kelly <contact@dklabs.co.uk>
  */
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->component = 'local_nucleuscommon';
-$plugin->version   = 2026092600;
-$plugin->release   = '0.9.0';
-$plugin->maturity  = MATURITY_ALPHA;
-$plugin->requires  = 2025100600;
+$tasks = [
+    [
+        'classname' => '\local_nucleuscommon\task\record_usage',
+        'blocking' => 0,
+        'minute' => '*/10',
+        'hour' => '*',
+        'day' => '*',
+        'month' => '*',
+        'dayofweek' => '*',
+    ],
+];

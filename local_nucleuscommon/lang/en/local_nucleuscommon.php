@@ -87,4 +87,5 @@ $string['statusbar_role'] = 'Role: {$a}';
 $string['statusbar_thissite'] = 'This site';
 $string['statusbar_toggle'] = 'Details';
 $string['supportline'] = 'If this keeps happening, email {$a}.';
+$string['task_record_usage'] = 'Record usage figures for Nucleus';
 $string['tokenmissing'] = 'This site has no Nucleus token yet, so it can\'t talk to its federation.';

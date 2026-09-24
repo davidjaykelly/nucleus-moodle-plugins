@@ -32,6 +32,10 @@ use core_privacy\local\request\writer;
  * removes their user ID from these records rather than the records,
  * which spokes still depend on.
  *
+ * The usage table (local_nucleuscommon_usage) holds site-wide counts only,
+ * with no user IDs or other personal data, so it isn't declared here and
+ * there is nothing in it to export or delete.
+ *
  * @package    local_nucleuscommon
  * @copyright  2026 David Kelly <contact@dklabs.co.uk>
  * @license    https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later

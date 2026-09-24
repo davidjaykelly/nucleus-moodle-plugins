@@ -116,5 +116,23 @@ function xmldb_local_nucleuscommon_upgrade(int $oldversion): bool {
         upgrade_plugin_savepoint(true, 2026092404, 'local', 'nucleuscommon');
     }
 
+    if ($oldversion < 2026092600) {
+        // Usage history: the people figures the record_usage task takes
+        // every 10 minutes, for the usage graphs in the Nucleus portal.
+        $table = new xmldb_table('local_nucleuscommon_usage');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('users', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('online', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('active24h', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_index('timecreated', XMLDB_INDEX_NOTUNIQUE, ['timecreated']);
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        upgrade_plugin_savepoint(true, 2026092600, 'local', 'nucleuscommon');
+    }
+
     return true;
 }

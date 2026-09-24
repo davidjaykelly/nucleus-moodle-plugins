@@ -17,9 +17,11 @@
 /**
  * Web service declarations for local_nucleuscommon.
  *
- * Common only declares functions — services are owned by the
- * hub / spoke plugins which add these function names to their
- * own `nucleus_cp` service definition.
+ * Common only declares functions. The services are owned by the
+ * hub and spoke plugins, which list most of these functions in their
+ * control-plane services (`nucleus_cp_hub` and `nucleus_cp_spoke`).
+ * get_usage_history adds itself to both through its `services` key
+ * instead, which Moodle applies at the end of every upgrade.
  *
  * @package    local_nucleuscommon
  * @copyright  2026 David Kelly <contact@dklabs.co.uk>
@@ -34,6 +36,14 @@ $functions = [
         'description' => 'Counts of users, courses, enrolments and users active in the last 24 hours.',
         'type'        => 'read',
         'ajax'        => false,
+    ],
+    'local_nucleuscommon_get_usage_history' => [
+        'classname'   => 'local_nucleuscommon\external\get_usage_history',
+        'description' => 'The people figures this site recorded every 10 minutes, as the highest value in each time bucket.',
+        'type'        => 'read',
+        'ajax'        => false,
+        // The control-plane services only, as get_tenant_stats is.
+        'services'    => ['nucleus_cp_hub', 'nucleus_cp_spoke'],
     ],
     'local_nucleuscommon_provision_admin_account' => [
         'classname'   => 'local_nucleuscommon\external\provision_admin_account',

@@ -8,32 +8,32 @@
 //
 // Moodle is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with Moodle. If not, see <https://www.gnu.org/licenses/>.
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
  * Version metadata for local_nucleusspoke.
  *
- * Spoke-side Nucleus federation plugin: calls hub external functions, mirrors
- * content (Mode A) or projects users and enrolments (Mode B), consumes hub
- * events from the shared event stream.
+ * Spoke-side Nucleus federation plugin: browses the hub's catalogue and
+ * pulls published course versions as local courses (ADR-014), with the
+ * update, rollback and lock handling that goes with them.
  *
  * @package    local_nucleusspoke
- * @copyright  2026 David Kelly <contact@davidkel.ly>
+ * @copyright  2026 David Kelly <contact@dklabs.co.uk>
  * @license    https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @author     David Kelly <contact@davidkel.ly>
+ * @author     David Kelly <contact@dklabs.co.uk>
  */
 
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'local_nucleusspoke';
-$plugin->version   = 2026043007;
-$plugin->release   = '0.10.3-phase3';
+$plugin->version   = 2026092501;
+$plugin->release   = '0.11.0';
 $plugin->maturity  = MATURITY_ALPHA;
 $plugin->requires  = 2025100600;
 $plugin->dependencies = [
-    'local_nucleuscommon' => 2026043003,
+    'local_nucleuscommon' => 2026092501,
 ];

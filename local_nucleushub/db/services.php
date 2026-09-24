@@ -8,21 +8,22 @@
 //
 // Moodle is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with Moodle. If not, see <https://www.gnu.org/licenses/>.
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
  * Web service declarations for local_nucleushub.
  *
- * Declares the five external functions that make up the hub side of the
- * Nucleus federation protocol, and the dedicated "Nucleus federation"
- * service that spokes authenticate against.
+ * Declares the hub's external functions and two services: "Nucleus
+ * federation", which spokes call with their own per-spoke token
+ * (ADR-023), and "Nucleus control plane (hub)", which Nucleus calls.
+ * Spokes only share courses, so the federation service is read-only.
  *
  * @package    local_nucleushub
- * @copyright  2026 David Kelly <contact@davidkel.ly>
+ * @copyright  2026 David Kelly <contact@dklabs.co.uk>
  * @license    https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -31,78 +32,94 @@ defined('MOODLE_INTERNAL') || die();
 $functions = [
     'local_nucleushub_list_courses' => [
         'classname'   => 'local_nucleushub\external\list_courses',
-        'description' => 'Return courses flagged on the hub as available for federation.',
+        'description' => 'List the courses this hub offers to its federation.',
         'type'        => 'read',
-        'ajax'        => false,
-    ],
-    'local_nucleushub_request_course_copy' => [
-        'classname'   => 'local_nucleushub\external\request_course_copy',
-        'description' => 'Mode A: trigger a backup of a hub course and return a retrievable reference.',
-        'type'        => 'write',
-        'ajax'        => false,
-    ],
-    'local_nucleushub_project_user' => [
-        'classname'   => 'local_nucleushub\external\project_user',
-        'description' => 'Mode B: create or update a shadow user record on the hub. Returns the hub user id.',
-        'type'        => 'write',
-        'ajax'        => false,
-    ],
-    'local_nucleushub_request_enrolment' => [
-        'classname'   => 'local_nucleushub\external\request_enrolment',
-        'description' => 'Mode B: enrol a projected user in a hub-hosted course.',
-        'type'        => 'write',
-        'ajax'        => false,
-    ],
-    'local_nucleushub_revoke_enrolment' => [
-        'classname'   => 'local_nucleushub\external\revoke_enrolment',
-        'description' => 'Mode B: unenrol a projected user from a hub-hosted course.',
-        'type'        => 'write',
         'ajax'        => false,
     ],
     'local_nucleushub_register_spoke' => [
         'classname'   => 'local_nucleushub\external\register_spoke',
-        'description' => 'Auto-config: register a spoke with this hub and return a permanent token for it to call back with.',
+        'description' => 'Register a spoke with this hub: give it its own hub account and return that account\'s token.',
+        'type'        => 'write',
+        'ajax'        => false,
+    ],
+    'local_nucleushub_unregister_spoke' => [
+        'classname'   => 'local_nucleushub\external\unregister_spoke',
+        'description' => 'Remove a spoke from this hub: delete its hub account and token.',
         'type'        => 'write',
         'ajax'        => false,
     ],
     'local_nucleushub_publish_version' => [
         'classname'   => 'local_nucleushub\external\publish_version',
-        'description' => 'Publish a new version of a course family: backup the course, upload snapshot to the control plane, record version metadata.',
+        'description' => 'Publish a new version of a course family: back up the course, upload it to Nucleus and record the version.',
         'type'        => 'write',
         'ajax'        => false,
         'capabilities' => 'local/nucleushub:publish',
     ],
     'local_nucleushub_list_families' => [
         'classname'   => 'local_nucleushub\external\list_families',
-        'description' => 'List every course family on this hub with its version history — used by the Nucleus portal.',
+        'description' => 'List every course family on this hub with its versions.',
         'type'        => 'read',
         'ajax'        => false,
         'capabilities' => 'local/nucleushub:publish',
     ],
     'local_nucleushub_mark_deprecated' => [
         'classname'   => 'local_nucleushub\external\mark_deprecated',
-        'description' => 'ADR-014 Phase 2: flip the deprecated flag on a published version and broadcast the change to spokes.',
+        'description' => 'Mark a published version as deprecated, or not, and tell the spokes.',
         'type'        => 'write',
         'ajax'        => false,
         'capabilities' => 'local/nucleushub:publish',
     ],
-    'local_nucleushub_list_projusers' => [
-        'classname'   => 'local_nucleushub\external\list_projusers',
-        'description' => 'Phase B1: list Mode B shadow users for the portal Identity surface (optional cpspokeid filter).',
-        'type'        => 'read',
-        'ajax'        => false,
-    ],
-    'local_nucleushub_revoke_user' => [
-        'classname'   => 'local_nucleushub\external\revoke_user',
-        'description' => 'Phase B1: spoke-initiated GDPR cascade — delete the shadow user + projusers row.',
-        'type'        => 'write',
-        'ajax'        => false,
-    ],
     'local_nucleushub_describe_version' => [
         'classname'   => 'local_nucleushub\external\describe_version',
-        'description' => 'ADR-021 Tier A: return the dependency manifest for a published version so a spoke can pre-flight before downloading.',
+        'description' => 'Return the plugins and Moodle version a published version needs, so a spoke can check before pulling.',
         'type'        => 'read',
         'ajax'        => false,
+    ],
+    // Sign in with the hub (ADR-023 section 3). Control plane only:
+    // these must never be on the federation service spokes call.
+    'local_nucleushub_oidc_register_client' => [
+        'classname'   => 'local_nucleushub\external\oidc_register_client',
+        'description' => 'Register a spoke\'s sign-in client on this hub, or give it a new secret.',
+        'type'        => 'write',
+        'ajax'        => false,
+        'capabilities' => 'moodle/site:config',
+    ],
+    'local_nucleushub_oidc_delete_client' => [
+        'classname'   => 'local_nucleushub\external\oidc_delete_client',
+        'description' => 'Delete a spoke\'s sign-in client, with its codes and tokens.',
+        'type'        => 'write',
+        'ajax'        => false,
+        'capabilities' => 'moodle/site:config',
+    ],
+    'local_nucleushub_list_users_for_linking' => [
+        'classname'   => 'local_nucleushub\external\list_users_for_linking',
+        'description' => 'List hub accounts so Nucleus can offer to link spoke accounts to them.',
+        'type'        => 'read',
+        'ajax'        => false,
+        'capabilities' => 'moodle/site:config',
+    ],
+    // Sign in with your organisation (ADR-023 section 5). Control plane
+    // only, like the functions above.
+    'local_nucleushub_configure_org_signin' => [
+        'classname'   => 'local_nucleushub\external\configure_org_signin',
+        'description' => 'Set up the organisation\'s own sign-in (Microsoft Entra ID, Google or OpenID Connect) on the hub.',
+        'type'        => 'write',
+        'ajax'        => false,
+        'capabilities' => 'moodle/site:config',
+    ],
+    'local_nucleushub_disable_org_signin' => [
+        'classname'   => 'local_nucleushub\external\disable_org_signin',
+        'description' => 'Turn the organisation\'s own sign-in off on the hub, keeping its settings.',
+        'type'        => 'write',
+        'ajax'        => false,
+        'capabilities' => 'moodle/site:config',
+    ],
+    'local_nucleushub_signin_status' => [
+        'classname'   => 'local_nucleushub\external\signin_status',
+        'description' => 'Report the hub\'s sign-in set-up: the organisation\'s provider and self-registration.',
+        'type'        => 'read',
+        'ajax'        => false,
+        'capabilities' => 'moodle/site:config',
     ],
 ];
 
@@ -111,11 +128,6 @@ $services = [
         'functions'       => [
             'local_nucleushub_list_courses',
             'local_nucleushub_list_families',
-            'local_nucleushub_request_course_copy',
-            'local_nucleushub_project_user',
-            'local_nucleushub_request_enrolment',
-            'local_nucleushub_revoke_enrolment',
-            'local_nucleushub_revoke_user',
             'local_nucleushub_describe_version',
         ],
         'restrictedusers' => 1,
@@ -132,20 +144,20 @@ $services = [
     'Nucleus control plane (hub)' => [
         'functions'       => [
             'local_nucleushub_list_courses',
-            'local_nucleushub_request_course_copy',
-            'local_nucleushub_project_user',
-            'local_nucleushub_request_enrolment',
-            'local_nucleushub_revoke_enrolment',
             'local_nucleushub_register_spoke',
+            'local_nucleushub_unregister_spoke',
             'local_nucleushub_publish_version',
             'local_nucleushub_list_families',
             'local_nucleushub_mark_deprecated',
-            'local_nucleushub_list_projusers',
-            'local_nucleushub_revoke_user',
             'local_nucleushub_describe_version',
             'local_nucleuscommon_get_tenant_stats',
-            'local_nucleuscommon_set_federation_mode',
             'local_nucleuscommon_provision_admin_account',
+            'local_nucleushub_oidc_register_client',
+            'local_nucleushub_oidc_delete_client',
+            'local_nucleushub_list_users_for_linking',
+            'local_nucleushub_configure_org_signin',
+            'local_nucleushub_disable_org_signin',
+            'local_nucleushub_signin_status',
         ],
         'restrictedusers' => 1,
         'enabled'         => 1,

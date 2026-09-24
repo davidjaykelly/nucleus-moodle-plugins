@@ -1,0 +1,92 @@
+{{!
+    This file is part of Moodle - https://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
+}}
+{{!
+    @template local_nucleusspoke/blocked_report
+
+    Why a pull was refused, shown above the catalogue. States are
+    words, not symbols. Uses the site's theme.
+
+    Context variables required for this template:
+    * title, intro
+    * hasmodules, modules - plugin, state, missing, older, needs, local.
+    * hasblockers, blockers - detail, remedy.
+    * hasnotes, notes - text.
+    * retrybutton - Rendered single_button HTML.
+    * backurl - The catalogue.
+
+    Example context (json):
+    {
+        "title": "Can't pull safeguarding-101 v1.1.0 yet",
+        "intro": "This site is missing plugins the course needs, listed below. Email contact@dklabs.co.uk to have them added, then try again.",
+        "hasmodules": true,
+        "modules": [
+            {"plugin": "mod_hvp", "state": "Missing", "missing": true, "older": false, "needs": "2025010100", "local": "Not installed"},
+            {"plugin": "mod_forum", "state": "Installed", "missing": false, "older": false, "needs": "2025100600", "local": "2025100600"}
+        ],
+        "hasblockers": true,
+        "blockers": [{"detail": "This course uses plugins this site doesn't have: mod_hvp.", "remedy": "Email contact@dklabs.co.uk to have them added, then try again."}],
+        "hasnotes": false,
+        "notes": [],
+        "retrybutton": "<button class=\"btn btn-primary\">Try again</button>",
+        "backurl": "https://example.com/local/nucleusspoke/catalog.php"
+    }
+}}
+<div class="alert alert-danger local-nucleusspoke-blocked" role="alert">
+    <h3 class="h5">{{title}}</h3>
+    <p>{{intro}}</p>
+    {{#hasmodules}}
+    <div class="table-responsive">
+        <table class="generaltable table-sm w-100 mb-3">
+            <caption class="visually-hidden">{{#str}}catalog_mod_caption, local_nucleusspoke{{/str}}</caption>
+            <thead>
+                <tr>
+                    <th scope="col">{{#str}}catalog_mod_plugin_col, local_nucleusspoke{{/str}}</th>
+                    <th scope="col">{{#str}}catalog_mod_state_col, local_nucleusspoke{{/str}}</th>
+                    <th scope="col">{{#str}}catalog_mod_manifest_col, local_nucleusspoke{{/str}}</th>
+                    <th scope="col">{{#str}}catalog_mod_local_col, local_nucleusspoke{{/str}}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#modules}}
+                <tr>
+                    <td><code>{{plugin}}</code></td>
+                    <td><span class="badge {{#missing}}text-bg-danger{{/missing}}{{#older}}text-bg-warning{{/older}}{{^missing}}{{^older}}text-bg-success{{/older}}{{/missing}}">{{state}}</span></td>
+                    <td>{{needs}}</td>
+                    <td>{{local}}</td>
+                </tr>
+                {{/modules}}
+            </tbody>
+        </table>
+    </div>
+    {{/hasmodules}}
+    {{#hasblockers}}
+    <h4 class="h6">{{#str}}catalog_blocked_remediation, local_nucleusspoke{{/str}}</h4>
+    <ul>
+        {{#blockers}}<li>{{detail}}{{#remedy}} {{.}}{{/remedy}}</li>{{/blockers}}
+    </ul>
+    {{/hasblockers}}
+    {{#hasnotes}}
+    <h4 class="h6">{{#str}}catalog_blocked_notes, local_nucleusspoke{{/str}}</h4>
+    <ul>
+        {{#notes}}<li>{{text}}</li>{{/notes}}
+    </ul>
+    {{/hasnotes}}
+    <div class="d-flex flex-wrap align-items-center gap-3">
+        {{{retrybutton}}}
+        <a href="{{backurl}}">{{#str}}catalog_blocked_back, local_nucleusspoke{{/str}}</a>
+    </div>
+</div>

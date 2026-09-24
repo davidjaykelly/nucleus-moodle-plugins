@@ -8,11 +8,11 @@
 //
 // Moodle is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with Moodle. If not, see <https://www.gnu.org/licenses/>.
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
  * Idempotent: ensure the Nucleus control plane has a Moodle web-service
@@ -30,13 +30,13 @@
  * minting a new one.
  *
  * @package    local_nucleuscommon
- * @copyright  2026 David Kelly <contact@davidkel.ly>
+ * @copyright  2026 David Kelly <contact@dklabs.co.uk>
  * @license    https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 define('CLI_SCRIPT', true);
 
-require(__DIR__ . '/../../../../config.php');
+require(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/clilib.php');
 require_once($CFG->libdir . '/externallib.php');
 
@@ -56,9 +56,10 @@ list($options, $unrecognised) = cli_get_params(
         // — the URL Moodle uses to call back to the CP for blob upload
         // and other federation-node operations. Set once at provision
         // time; rotate-and-restart if the CP host changes.
-        // `--cp-secret=<secret>` writes local_nucleuscommon/cpsecret
-        // — shared FEDERATION_NODE_SECRET matching the CP's. Used to
-        // sign federation-node calls (cp_client::from_config).
+        // `--cp-secret=<token>` writes local_nucleuscommon/cpsecret
+        // — this site's own node token, issued by the CP. Sent as the
+        // Bearer on federation-node calls (cp_client::from_config).
+        // `--cp-secret=-` reads it from stdin, keeping it out of argv.
         'role'          => 'hub',
         'service'       => '',
         'federation-id' => '',
@@ -112,6 +113,11 @@ $cpconfigs = [
     'cp-base-url'   => 'cpbaseurl',
     'cp-secret'     => 'cpsecret',
 ];
+// `--cp-secret=-` reads the secret from stdin, so it never appears in the
+// process's arguments (the control plane passes it this way).
+if ((string)$options['cp-secret'] === '-') {
+    $options['cp-secret'] = trim((string)stream_get_contents(STDIN));
+}
 foreach ($cpconfigs as $opt => $configkey) {
     $value = trim((string)$options[$opt]);
     if ($value === '') {
@@ -146,7 +152,7 @@ if (!in_array('rest', $protocols, true)) {
 //    it's not, the upgrade hasn't run yet and the worker should retry.
 $service = $DB->get_record('external_services', ['shortname' => $shortname]);
 if (!$service) {
-    cli_error("service '{$shortname}' not found — has the plugin defining it been installed and upgraded?", 2);
+    cli_error("service '{$shortname}' not found - has the plugin that defines it been installed and upgraded?", 2);
 }
 
 // 3. `restrictedusers=1` means specific users must be authorised

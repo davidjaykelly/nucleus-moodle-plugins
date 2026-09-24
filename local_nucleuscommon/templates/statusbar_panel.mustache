@@ -1,0 +1,51 @@
+{{!
+    This file is part of Moodle - https://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
+}}
+{{!
+    @template local_nucleuscommon/statusbar_panel
+
+    The Nucleus bar's panel: rows of facts about this course and this
+    site, separated by hairlines.
+
+    Context variables required for this template:
+    * rows - title, lines (text), notes (release notes), callout.
+
+    Example context (json):
+    {
+        "rows": [
+            {"title": "Update available", "lines": [{"text": "v1.1.0 (Minor) · received 2 hours ago"}],
+             "notes": "New quiz in week 3.", "callout": ""},
+            {"title": "This course is on", "lines": [{"text": "v1.0.0 (Major) · published 3 weeks ago"}],
+             "notes": "", "callout": "The hub has deprecated this version: broken links in week 1."}
+        ]
+    }
+}}
+<ul class="local-nucleuscommon-bar-rows">
+    {{#rows}}
+    <li class="local-nucleuscommon-bar-row">
+        <p class="local-nucleuscommon-bar-rowtitle">{{title}}</p>
+        {{#lines}}
+        <p class="local-nucleuscommon-bar-line">{{text}}</p>
+        {{/lines}}
+        {{#notes}}
+        <div class="local-nucleuscommon-bar-notes">{{.}}</div>
+        {{/notes}}
+        {{#callout}}
+        <p class="local-nucleuscommon-bar-callout">{{.}}</p>
+        {{/callout}}
+    </li>
+    {{/rows}}
+</ul>

@@ -8,11 +8,11 @@
 //
 // Moodle is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with Moodle. If not, see <https://www.gnu.org/licenses/>.
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
  * HTTP client for calling the Nucleus control plane from a Moodle
@@ -20,9 +20,9 @@
  * federation-node secret per ADR-014.
  *
  * @package    local_nucleuscommon
- * @copyright  2026 David Kelly <contact@davidkel.ly>
+ * @copyright  2026 David Kelly <contact@dklabs.co.uk>
  * @license    https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @author     David Kelly <contact@davidkel.ly>
+ * @author     David Kelly <contact@dklabs.co.uk>
  */
 
 namespace local_nucleuscommon\transport;
@@ -54,15 +54,17 @@ class cp_client_exception extends \moodle_exception {
 }
 
 /**
- * Thin Moodle-to-CP client. Reads the base URL and node secret from
- * plugin config. All calls send the secret as a Bearer token.
+ * Thin Moodle-to-CP client. Reads the base URL and this site's node token
+ * (cpsecret, issued to this site alone) from plugin config, and sends the
+ * token as a Bearer on every control-plane call. Signed Cloud Storage URLs
+ * get no credentials.
  */
 class cp_client {
 
     /** @var string Base URL, no trailing slash. */
     private string $baseurl;
 
-    /** @var string Federation-node shared secret. */
+    /** @var string This site's node token. */
     private string $secret;
 
     /** @var int Per-request timeout in seconds. Big enough for snapshot uploads. */
@@ -83,6 +85,7 @@ class cp_client {
                 'cpnotconfigured',
                 'local_nucleuscommon',
                 '',
+                null,
                 'Set local_nucleuscommon/cpbaseurl and /cpsecret before calling the control plane.'
             );
         }
@@ -172,6 +175,129 @@ class cp_client {
             curl_close($ch);
             fclose($handle);
         }
+    }
+
+    /**
+     * POST a JSON body to the control plane and decode the JSON reply.
+     *
+     * @param string $path URL path, e.g. "/course-versions/{guid}/snapshot/upload-url".
+     * @param array $body Request body.
+     * @return array Decoded JSON response.
+     * @throws cp_client_exception
+     */
+    public function post_json(string $path, array $body = []): array {
+        $ch = curl_init($this->baseurl . $path);
+        try {
+            curl_setopt_array($ch, [
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => json_encode((object) $body),
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT        => 60,
+                CURLOPT_CONNECTTIMEOUT => 30,
+                CURLOPT_HTTPHEADER     => [
+                    'Authorization: Bearer ' . $this->secret,
+                    'Content-Type: application/json',
+                ],
+            ]);
+            $response = curl_exec($ch);
+            if ($response === false) {
+                throw new cp_client_exception('curl error: ' . curl_error($ch));
+            }
+            $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $responsebody = is_string($response) ? $response : '';
+            if ($status < 200 || $status >= 300) {
+                throw new cp_client_exception("CP returned HTTP {$status}", $status, $responsebody);
+            }
+            $decoded = json_decode($responsebody, true);
+            if (!is_array($decoded)) {
+                throw new cp_client_exception('CP response was not JSON', $status, $responsebody);
+            }
+            return $decoded;
+        } finally {
+            curl_close($ch);
+        }
+    }
+
+    /**
+     * Stream a local file to a signed Cloud Storage URL (PUT), as handed out
+     * by the control plane's snapshot/upload-url. Sends no control-plane
+     * credentials: the URL itself is the permission.
+     *
+     * @param string $url Signed URL.
+     * @param string $filepath Local file.
+     * @param array $headers Headers the URL was signed with, name => value.
+     * @throws cp_client_exception
+     */
+    public static function put_file_to_url(string $url, string $filepath, array $headers = []): void {
+        $size = @filesize($filepath);
+        $handle = @fopen($filepath, 'rb');
+        if ($size === false || $handle === false) {
+            throw new cp_client_exception("local file not readable: {$filepath}");
+        }
+        $headerlines = ['Expect:'];
+        foreach ($headers as $name => $value) {
+            $headerlines[] = $name . ': ' . $value;
+        }
+        $ch = curl_init($url);
+        try {
+            curl_setopt_array($ch, [
+                CURLOPT_UPLOAD         => true,
+                CURLOPT_INFILE         => $handle,
+                CURLOPT_INFILESIZE     => $size,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT        => 3600,
+                CURLOPT_CONNECTTIMEOUT => 30,
+                CURLOPT_HTTPHEADER     => $headerlines,
+            ]);
+            $response = curl_exec($ch);
+            if ($response === false) {
+                throw new cp_client_exception('upload failed: ' . curl_error($ch));
+            }
+            $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            if ($status < 200 || $status >= 300) {
+                throw new cp_client_exception("storage returned HTTP {$status}", $status, (string) $response);
+            }
+        } finally {
+            curl_close($ch);
+            fclose($handle);
+        }
+    }
+
+    /**
+     * Download a signed Cloud Storage URL to a local file, as handed out by
+     * the control plane's snapshot/download-url. No credentials sent.
+     *
+     * @param string $url Signed URL.
+     * @param string $destpath Where to write it.
+     * @return int Bytes written.
+     * @throws cp_client_exception
+     */
+    public static function download_url_to_file(string $url, string $destpath): int {
+        $handle = fopen($destpath, 'wb');
+        if ($handle === false) {
+            throw new cp_client_exception("could not open destination: {$destpath}");
+        }
+        $ch = curl_init($url);
+        try {
+            curl_setopt_array($ch, [
+                CURLOPT_FILE           => $handle,
+                CURLOPT_TIMEOUT        => 3600,
+                CURLOPT_CONNECTTIMEOUT => 30,
+            ]);
+            if (curl_exec($ch) === false) {
+                throw new cp_client_exception('download failed: ' . curl_error($ch));
+            }
+            $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            if ($status < 200 || $status >= 300) {
+                throw new cp_client_exception("storage returned HTTP {$status}", $status);
+            }
+        } finally {
+            curl_close($ch);
+            fclose($handle);
+        }
+        clearstatcache(true, $destpath);
+        $size = filesize($destpath);
+        return $size === false ? 0 : $size;
     }
 
     /**

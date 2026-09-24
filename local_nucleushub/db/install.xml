@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="local/nucleushub/db" VERSION="20260424" COMMENT="Nucleus federation hub — tables for registered spokes, projected users (Mode B), outbound event log, and course-versioning draft/changelog state (ADR-014)."
+<XMLDB PATH="local/nucleushub/db" VERSION="20260926" COMMENT="Nucleus federation hub — tables for registered spokes, course-versioning draft/changelog state (ADR-014) and the sign-in provider (ADR-023)."
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../../lib/xmldb/xmldb.xsd"
 >
@@ -9,57 +9,22 @@
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="name" TYPE="char" LENGTH="100" NOTNULL="true" SEQUENCE="false" COMMENT="Human-readable spoke name."/>
         <FIELD NAME="wwwroot" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false" COMMENT="Spoke's wwwroot reachable from the hub."/>
-        <FIELD NAME="token" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false" COMMENT="Shared secret used by this spoke to call hub web services. Phase 0 is the matching wstoken."/>
-        <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="active" SEQUENCE="false" COMMENT="active | suspended"/>
+        <FIELD NAME="token" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false" COMMENT="Copy of the web service token this spoke calls the hub with: its own service account's token for the nucleus_federation service (ADR-023). Empty once the spoke is removed."/>
+        <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="active" SEQUENCE="false" COMMENT="active | suspended | removed"/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="timelastheartbeat" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="cpspokeid" TYPE="char" LENGTH="40" NOTNULL="false" SEQUENCE="false" COMMENT="Control-plane Spoke.id (cuid). Set at register_spoke time; used to address the spoke on outbound events without a name lookup. Phase B1."/>
+        <FIELD NAME="serviceuserid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="mdl_user.id of this spoke's own hub service account (ADR-023 section 6). Its token is the only one the spoke holds. Null for rows registered before per-spoke accounts, and once the spoke is removed."/>
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="serviceuserid_fk" TYPE="foreign" FIELDS="serviceuserid" REFTABLE="user" REFFIELDS="id"/>
       </KEYS>
       <INDEXES>
         <INDEX NAME="wwwroot" UNIQUE="true" FIELDS="wwwroot"/>
         <INDEX NAME="status" UNIQUE="false" FIELDS="status"/>
         <INDEX NAME="cpspokeid" UNIQUE="false" FIELDS="cpspokeid"/>
-      </INDEXES>
-    </TABLE>
-    <TABLE NAME="local_nucleushub_projusers" COMMENT="Projected users (Mode B only). Maps a (spokeid, spokeuserid) tuple to a shadow mdl_user record on the hub. Created on first enrolment of the spoke user in any hub-hosted course.">
-      <FIELDS>
-        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
-        <FIELD NAME="spokeid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
-        <FIELD NAME="spokeuserid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="User id on the spoke side."/>
-        <FIELD NAME="hubuserid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Shadow mdl_user.id on the hub."/>
-        <FIELD NAME="spokeusername" TYPE="char" LENGTH="100" NOTNULL="true" SEQUENCE="false" COMMENT="Denormalised for debugging — authoritative value lives on the spoke."/>
-        <FIELD NAME="spokeemail" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false" COMMENT="Denormalised for debugging — authoritative value lives on the spoke."/>
-        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
-      </FIELDS>
-      <KEYS>
-        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
-        <KEY NAME="spokeid_fk" TYPE="foreign" FIELDS="spokeid" REFTABLE="local_nucleushub_spokes" REFFIELDS="id"/>
-        <KEY NAME="hubuserid_fk" TYPE="foreign" FIELDS="hubuserid" REFTABLE="user" REFFIELDS="id"/>
-      </KEYS>
-      <INDEXES>
-        <INDEX NAME="spoke_user" UNIQUE="true" FIELDS="spokeid, spokeuserid" COMMENT="The lookup key used at enrolment time. FK on hubuserid already provides a reverse-lookup index."/>
-      </INDEXES>
-    </TABLE>
-    <TABLE NAME="local_nucleushub_events" COMMENT="Outbound event log. Every envelope published to the Redis stream is mirrored here for debugging and (eventually) replay. Not load-bearing for correctness in Phase 0.">
-      <FIELDS>
-        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
-        <FIELD NAME="envelopeid" TYPE="char" LENGTH="32" NOTNULL="true" SEQUENCE="false" COMMENT="Envelope.id set by the publisher."/>
-        <FIELD NAME="streamid" TYPE="char" LENGTH="32" NOTNULL="true" SEQUENCE="false" COMMENT="Redis stream id returned by XADD."/>
-        <FIELD NAME="type" TYPE="char" LENGTH="50" NOTNULL="true" SEQUENCE="false" COMMENT="Envelope type, e.g. completion.v1"/>
-        <FIELD NAME="destination" TYPE="char" LENGTH="100" NOTNULL="true" SEQUENCE="false" COMMENT="hub | spoke:&lt;id&gt; | broadcast"/>
-        <FIELD NAME="payload" TYPE="text" NOTNULL="true" SEQUENCE="false" COMMENT="JSON-encoded envelope.payload."/>
-        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
-      </FIELDS>
-      <KEYS>
-        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
-      </KEYS>
-      <INDEXES>
-        <INDEX NAME="envelopeid" UNIQUE="false" FIELDS="envelopeid"/>
-        <INDEX NAME="type_time" UNIQUE="false" FIELDS="type, timecreated"/>
       </INDEXES>
     </TABLE>
     <TABLE NAME="local_nucleushub_draft" COMMENT="Hub-side tracking for the live draft of each course family: which Moodle course is the working copy, what the latest published version was, and how many unpublished edits have accumulated since then. Exactly one row per family (one-course model per ADR-014)."
@@ -101,6 +66,81 @@
       </KEYS>
       <INDEXES>
         <INDEX NAME="family_time" UNIQUE="false" FIELDS="familyid, timecreated" COMMENT="Listing a family's pending changes in chronological order."/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="local_nucleushub_oidc_client" COMMENT="Sign in with the hub (ADR-023 section 3): one OpenID Connect client per spoke. The secret is stored only as a SHA-256 hash.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="spokeid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="local_nucleushub_spokes.id. One client per spoke row."/>
+        <FIELD NAME="clientid" TYPE="char" LENGTH="64" NOTNULL="true" SEQUENCE="false" COMMENT="Public client identifier. Stays the same when the client is registered again."/>
+        <FIELD NAME="secrethash" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false" COMMENT="Hex SHA-256 of the client secret (256 random bits, so no slow hash is needed). The secret itself is never stored."/>
+        <FIELD NAME="redirecturi" TYPE="char" LENGTH="1333" NOTNULL="true" SEQUENCE="false" COMMENT="The one redirect URI, compared exactly: {spoke wwwroot}/auth/nucleus/callback.php"/>
+        <FIELD NAME="postlogouturi" TYPE="char" LENGTH="1333" NOTNULL="true" SEQUENCE="false" COMMENT="The one post-logout redirect URI, compared exactly: {spoke wwwroot}/"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="spokeid_fk" TYPE="foreign-unique" FIELDS="spokeid" REFTABLE="local_nucleushub_spokes" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="clientid" UNIQUE="true" FIELDS="clientid"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="local_nucleushub_oidc_code" COMMENT="Sign in with the hub: authorisation codes. Single use, 60 seconds, stored only as a SHA-256 hash and bound to client, redirect URI, user, nonce and PKCE challenge.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="codehash" TYPE="char" LENGTH="64" NOTNULL="true" SEQUENCE="false" COMMENT="Hex SHA-256 of the code. Replaced by a claim marker while the code is being redeemed."/>
+        <FIELD NAME="clientid" TYPE="char" LENGTH="64" NOTNULL="true" SEQUENCE="false" COMMENT="local_nucleushub_oidc_client.clientid the code was issued to."/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="The hub user who signed in."/>
+        <FIELD NAME="redirecturi" TYPE="char" LENGTH="1333" NOTNULL="true" SEQUENCE="false" COMMENT="Redirect URI of the authorisation request. The token request must send the same."/>
+        <FIELD NAME="nonce" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false" COMMENT="The client's nonce, copied into the ID token."/>
+        <FIELD NAME="codechallenge" TYPE="char" LENGTH="64" NOTNULL="true" SEQUENCE="false" COMMENT="PKCE S256 challenge: base64url(sha256(code_verifier))."/>
+        <FIELD NAME="authtime" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="When the user signed in to the hub (auth_time claim)."/>
+        <FIELD NAME="expires" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="userid_fk" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="codehash" UNIQUE="true" FIELDS="codehash"/>
+        <INDEX NAME="clientid" UNIQUE="false" FIELDS="clientid"/>
+        <INDEX NAME="expires" UNIQUE="false" FIELDS="expires"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="local_nucleushub_oidc_token" COMMENT="Sign in with the hub: opaque access tokens for the userinfo endpoint. 300 seconds, stored only as a SHA-256 hash.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="tokenhash" TYPE="char" LENGTH="64" NOTNULL="true" SEQUENCE="false" COMMENT="Hex SHA-256 of the access token."/>
+        <FIELD NAME="clientid" TYPE="char" LENGTH="64" NOTNULL="true" SEQUENCE="false" COMMENT="local_nucleushub_oidc_client.clientid the token was issued to."/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="expires" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="userid_fk" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="tokenhash" UNIQUE="true" FIELDS="tokenhash"/>
+        <INDEX NAME="clientid" UNIQUE="false" FIELDS="clientid"/>
+        <INDEX NAME="expires" UNIQUE="false" FIELDS="expires"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="local_nucleushub_oidc_subject" COMMENT="Sign in with the hub: each hub user's opaque subject identifier (the sub claim). Random, never derived from the user id, so a reused user id can't inherit someone else's spoke accounts.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="The hub user. One subject per user."/>
+        <FIELD NAME="sub" TYPE="char" LENGTH="32" NOTNULL="true" SEQUENCE="false" COMMENT="32 lowercase hex characters: bin2hex(random_bytes(16))."/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="userid_fk" TYPE="foreign-unique" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="sub" UNIQUE="true" FIELDS="sub"/>
       </INDEXES>
     </TABLE>
   </TABLES>

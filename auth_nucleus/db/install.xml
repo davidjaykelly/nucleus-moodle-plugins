@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<XMLDB PATH="auth/nucleus/db" VERSION="20260925" COMMENT="Nucleus hub sign-in: which hub account each local account belongs to (ADR-023)."
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
+>
+  <TABLES>
+    <TABLE NAME="auth_nucleus_link" COMMENT="Links a local account to one hub account: the issuer and the hub's subject identifier. Sign-in finds accounts only through this table, never by email.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="The local account (user.id)."/>
+        <FIELD NAME="issuer" TYPE="char" LENGTH="1333" NOTNULL="true" SEQUENCE="false" COMMENT="The hub issuer the link belongs to."/>
+        <FIELD NAME="issuerhash" TYPE="char" LENGTH="64" NOTNULL="true" SEQUENCE="false" COMMENT="SHA-256 (hex) of issuer. Moodle can't index a 1333-character column, so the unique index uses this."/>
+        <FIELD NAME="sub" TYPE="char" LENGTH="64" NOTNULL="true" SEQUENCE="false" COMMENT="The hub's subject identifier for the person: 32 lower-case hex characters."/>
+        <FIELD NAME="previousauth" TYPE="char" LENGTH="20" NOTNULL="false" SEQUENCE="false" COMMENT="The account's login method before it was linked, restored when sign-in with the hub is turned off. Null for accounts the hub sign-in created."/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="userid" TYPE="foreign-unique" FIELDS="userid" REFTABLE="user" REFFIELDS="id" COMMENT="One hub account per local account."/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="issuerhash_sub" UNIQUE="true" FIELDS="issuerhash, sub" COMMENT="One local account per hub account of an issuer."/>
+      </INDEXES>
+    </TABLE>
+  </TABLES>
+</XMLDB>

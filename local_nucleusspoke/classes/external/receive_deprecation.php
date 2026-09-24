@@ -8,11 +8,11 @@
 //
 // Moodle is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with Moodle. If not, see <https://www.gnu.org/licenses/>.
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
  * External function: local_nucleusspoke_receive_deprecation
@@ -22,7 +22,7 @@
  * had a notification or a pull for it).
  *
  * @package    local_nucleusspoke
- * @copyright  2026 David Kelly <contact@davidkel.ly>
+ * @copyright  2026 David Kelly <contact@dklabs.co.uk>
  * @license    https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -41,7 +41,7 @@ class receive_deprecation extends external_api {
         return new external_function_parameters([
             'versionguid' => new external_value(PARAM_ALPHANUMEXT, 'Version guid.'),
             'deprecated' => new external_value(PARAM_BOOL, 'New deprecation state.'),
-            'deprecatedreason' => new external_value(PARAM_RAW, 'Reason.', VALUE_DEFAULT, ''),
+            'deprecatedreason' => new external_value(PARAM_TEXT, 'Reason (plain text).', VALUE_DEFAULT, ''),
         ]);
     }
 

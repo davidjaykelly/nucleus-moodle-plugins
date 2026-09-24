@@ -8,11 +8,11 @@
 //
 // Moodle is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with Moodle. If not, see <https://www.gnu.org/licenses/>.
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
  * Web service declarations for local_nucleuscommon.
@@ -22,7 +22,7 @@
  * own `nucleus_cp` service definition.
  *
  * @package    local_nucleuscommon
- * @copyright  2026 David Kelly <contact@davidkel.ly>
+ * @copyright  2026 David Kelly <contact@dklabs.co.uk>
  * @license    https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -31,19 +31,13 @@ defined('MOODLE_INTERNAL') || die();
 $functions = [
     'local_nucleuscommon_get_tenant_stats' => [
         'classname'   => 'local_nucleuscommon\external\get_tenant_stats',
-        'description' => 'Cheap aggregate counts: users / courses / enrolments / active-24h.',
+        'description' => 'Counts of users, courses, enrolments and users active in the last 24 hours.',
         'type'        => 'read',
-        'ajax'        => false,
-    ],
-    'local_nucleuscommon_set_federation_mode' => [
-        'classname'   => 'local_nucleuscommon\external\set_federation_mode',
-        'description' => 'Phase B1 Step 1: CP pushes Federation.mode onto this Moodle.',
-        'type'        => 'write',
         'ajax'        => false,
     ],
     'local_nucleuscommon_provision_admin_account' => [
         'classname'   => 'local_nucleuscommon\external\provision_admin_account',
-        'description' => 'ADR-016 Option A: provision a customer-facing site-admin Moodle account; returns a single-use password-reset URL.',
+        'description' => 'Create or update the customer\'s site administrator account and return a one-time link to set its password.',
         'type'        => 'write',
         'ajax'        => false,
     ],

@@ -8,11 +8,11 @@
 //
 // Moodle is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with Moodle. If not, see <https://www.gnu.org/licenses/>.
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
  * External function: local_nucleuscommon_get_tenant_stats.
@@ -21,7 +21,7 @@
  * snapshot panels. Single round-trip; ~4 SQL aggregates.
  *
  * @package    local_nucleuscommon
- * @copyright  2026 David Kelly <contact@davidkel.ly>
+ * @copyright  2026 David Kelly <contact@dklabs.co.uk>
  * @license    https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -47,7 +47,7 @@ class get_tenant_stats extends external_api {
     }
 
     public static function execute(): array {
-        global $DB;
+        global $CFG, $DB;
         self::validate_parameters(self::execute_parameters(), []);
 
         // Active human users: not deleted, not the guest account, confirmed.
@@ -88,7 +88,12 @@ class get_tenant_stats extends external_api {
             ['guest' => 'guest', 'cutoff' => $cutoff],
         );
 
+        // The Moodle release, e.g. "5.1.4" from "5.1.4 (Build: 20260310)",
+        // so the portal shows the real version rather than a stored guess.
+        $release = trim(strtok((string)($CFG->release ?? ''), ' ')) ?: '';
+
         return [
+            'moodleRelease'   => $release,
             'users'           => $users,
             'courses'         => $courses,
             'enrolments'      => $enrolments,
@@ -102,6 +107,7 @@ class get_tenant_stats extends external_api {
             'courses'        => new external_value(PARAM_INT, 'Real courses (excludes the front page).'),
             'enrolments'     => new external_value(PARAM_INT, 'Distinct (user, course) enrolment pairs.'),
             'activeUsers24h' => new external_value(PARAM_INT, 'Users with `lastaccess` in the past 24 hours.'),
+            'moodleRelease'  => new external_value(PARAM_TEXT, 'Moodle release, e.g. "5.1.4".'),
         ]);
     }
 }

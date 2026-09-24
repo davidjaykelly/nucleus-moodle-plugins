@@ -8,11 +8,11 @@
 //
 // Moodle is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with Moodle. If not, see <https://www.gnu.org/licenses/>.
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
  * Heuristic severity recommendation for a draft's pending changes
@@ -29,37 +29,40 @@
  * cleared on publish so the hint naturally resets to "none".
  *
  * @package    local_nucleushub
- * @copyright  2026 David Kelly <contact@davidkel.ly>
+ * @copyright  2026 David Kelly <contact@dklabs.co.uk>
  * @license    https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @author     David Kelly <contact@davidkel.ly>
+ * @author     David Kelly <contact@dklabs.co.uk>
  */
 
 namespace local_nucleushub\version;
 
 defined('MOODLE_INTERNAL') || die();
 
+/**
+ * Suggest a type of change (patch, minor, major) from a course
+ * family's unpublished changes.
+ */
 class severity_hint {
-
     /**
+     * Suggest a type of change for a family's unpublished changes.
+     *
      * @param int $familyid
      * @return array{suggested: string|null, counts: array<string,int>, rationale: string|null}
      */
     public static function for_family(int $familyid): array {
         global $DB;
 
-        $rows = $DB->get_records(
-            'local_nucleushub_changelog',
-            ['familyid' => $familyid],
-            '',
-            'eventkind'
-        );
-        if (!$rows) {
+        // One count per kind of change. (Fetching the eventkind column
+        // on its own would key the rows by kind and count each kind once.)
+        $counts = array_map('intval', $DB->get_records_sql_menu(
+            "SELECT eventkind, COUNT(1)
+               FROM {local_nucleushub_changelog}
+              WHERE familyid = :familyid
+           GROUP BY eventkind",
+            ['familyid' => $familyid]
+        ));
+        if (!$counts) {
             return ['suggested' => null, 'counts' => [], 'rationale' => null];
-        }
-
-        $counts = [];
-        foreach ($rows as $r) {
-            $counts[$r->eventkind] = ($counts[$r->eventkind] ?? 0) + 1;
         }
 
         $deletes = ($counts['module_deleted'] ?? 0)

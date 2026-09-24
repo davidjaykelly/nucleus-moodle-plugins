@@ -8,55 +8,39 @@
 //
 // Moodle is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with Moodle. If not, see <https://www.gnu.org/licenses/>.
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
  * Admin settings for local_nucleushub.
  *
  * @package    local_nucleushub
- * @copyright  2026 David Kelly <contact@davidkel.ly>
+ * @copyright  2026 David Kelly <contact@dklabs.co.uk>
  * @license    https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 defined('MOODLE_INTERNAL') || die();
 
-if ($hassiteconfig) {
-    $settings = new admin_settingpage(
-        'local_nucleushub',
-        get_string('pluginname', 'local_nucleushub')
-    );
+use local_nucleuscommon\local\site;
 
-    $settings->add(new admin_setting_heading(
-        'local_nucleushub/intro',
-        '',
-        get_string('setting_intro_html', 'local_nucleushub')
-    ));
+site::add_admin_category($ADMIN);
 
-    $settings->add(new admin_setting_configtext(
-        'local_nucleushub/spoketoken',
-        get_string('setting_spoketoken', 'local_nucleushub'),
-        get_string('setting_spoketoken_desc', 'local_nucleushub'),
-        '',
-        PARAM_ALPHANUM
-    ));
-
-    $ADMIN->add('localplugins', $settings);
-
-    // Direct link to the families dashboard from the admin tree —
-    // mirrors the spoke's Versions / Catalog entries.
-    $ADMIN->add('localplugins', new admin_externalpage(
+// Hub pages only on sites that are hubs. Registered outside the
+// $hassiteconfig check so managers with the publish capability (but
+// not site config) can still open them.
+if (site::is_hub()) {
+    $ADMIN->add(site::ADMIN_CATEGORY, new admin_externalpage(
         'local_nucleushub_families',
-        get_string('families_title', 'local_nucleushub'),
+        new lang_string('families_title', 'local_nucleushub'),
         new moodle_url('/local/nucleushub/families.php'),
         'local/nucleushub:publish'
     ));
-    $ADMIN->add('localplugins', new admin_externalpage(
+    $ADMIN->add(site::ADMIN_CATEGORY, new admin_externalpage(
         'local_nucleushub_spokes',
-        get_string('spokes_title', 'local_nucleushub'),
+        new lang_string('spokes_title', 'local_nucleushub'),
         new moodle_url('/local/nucleushub/spokes.php'),
         'local/nucleushub:publish'
     ));

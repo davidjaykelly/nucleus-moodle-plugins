@@ -8,17 +8,17 @@
 //
 // Moodle is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with Moodle. If not, see <https://www.gnu.org/licenses/>.
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
  * Publisher for the federation event stream.
  *
  * @package    local_nucleuscommon
- * @copyright  2026 David Kelly <contact@davidkel.ly>
+ * @copyright  2026 David Kelly <contact@dklabs.co.uk>
  * @license    https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -31,7 +31,7 @@ defined('MOODLE_INTERNAL') || die();
  * shared stream has the same outer structure:
  *
  *     {
- *       "type":       "<domain>.<version>",  e.g. "completion.v1"
+ *       "type":       "<domain>.<version>",  e.g. "course_version_published.v1"
  *       "id":         "<uuid-ish hex>",
  *       "source":     "hub" | "spoke:<id>",
  *       "destination":"hub" | "spoke:<id>" | "broadcast",
@@ -50,7 +50,7 @@ class publisher {
      * retention policies, usable as an idempotency key) and the Redis
      * stream id (monotonic within a stream, used for XACK).
      *
-     * @param string $type Envelope type, e.g. 'completion.v1'.
+     * @param string $type Envelope type, e.g. 'course_version_published.v1'.
      * @param string $source Logical sender — 'hub' or 'spoke:<spokeid>'.
      * @param string $destination 'hub', 'spoke:<spokeid>', or 'broadcast'.
      * @param array $payload Event-specific body.

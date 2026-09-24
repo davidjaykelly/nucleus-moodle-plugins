@@ -1,0 +1,74 @@
+{{!
+    This file is part of Moodle - https://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
+}}
+{{!
+    @template local_nucleuscommon/statusbar
+
+    The Nucleus bar: a small ink band fixed to the bottom of course
+    pages and Nucleus pages, for the people who run the Nucleus side of
+    the site. Uses the site's own fonts apart from the mono labels.
+
+    Data attributes required for JS:
+    * data-status-url, data-state-hash, data-region, data-action
+
+    Context variables required for this template:
+    * statusurl - Polling endpoint for fresh state.
+    * hash - Hash of the current state.
+    * segments - Short facts shown in the bar: text, attention.
+    * actions - Links: label, url, primary, external.
+    * rows - Panel rows: title, lines (text), notes, callout.
+
+    Example context (json):
+    {
+        "statusurl": "https://example.com/local/nucleuscommon/status.php?pagetype=course-view-topics&courseid=2",
+        "hash": "3f2a",
+        "segments": [
+            {"text": "intro-to-safeguarding", "attention": false},
+            {"text": "Unpublished changes: 3", "attention": true}
+        ],
+        "actions": [
+            {"label": "Publish version", "url": "https://example.com/local/nucleushub/publish.php?id=2",
+             "primary": true, "external": false},
+            {"label": "Nucleus portal", "url": "https://nucleus.dklabs.co.uk", "primary": false, "external": true}
+        ],
+        "rows": [
+            {"title": "Last published", "lines": [{"text": "v1.2.0 (Minor) · published 3 days ago"}],
+             "notes": "Added a quiz to week 2.", "callout": ""},
+            {"title": "This site", "lines": [{"text": "Role: Hub"}, {"text": "Federation ID: fed123"}],
+             "notes": "", "callout": ""}
+        ]
+    }
+}}
+<section class="local-nucleuscommon-bar" id="local-nucleuscommon-bar"
+        aria-label="{{#str}}statusbar_label, local_nucleuscommon{{/str}}"
+        data-status-url="{{statusurl}}" data-state-hash="{{hash}}">
+    <div class="local-nucleuscommon-bar-strip">
+        <span class="local-nucleuscommon-bar-brand">{{#str}}statusbar_brand, local_nucleuscommon{{/str}}</span>
+        <div class="local-nucleuscommon-bar-segments" data-region="segments">
+            {{> local_nucleuscommon/statusbar_segments }}
+        </div>
+        <div class="local-nucleuscommon-bar-actions" data-region="actions">
+            {{> local_nucleuscommon/statusbar_actions }}
+        </div>
+        <button type="button" class="local-nucleuscommon-bar-toggle" data-action="toggle"
+                aria-expanded="false" aria-controls="local-nucleuscommon-bar-panel">
+            {{#str}}statusbar_toggle, local_nucleuscommon{{/str}}<span class="local-nucleuscommon-bar-caret" aria-hidden="true"></span>
+        </button>
+    </div>
+    <div class="local-nucleuscommon-bar-panel" id="local-nucleuscommon-bar-panel" data-region="panel" hidden>
+        {{> local_nucleuscommon/statusbar_panel }}
+    </div>
+</section>

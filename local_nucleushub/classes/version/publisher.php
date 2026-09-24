@@ -8,11 +8,11 @@
 //
 // Moodle is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with Moodle. If not, see <https://www.gnu.org/licenses/>.
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
  * Publish orchestration for course versioning (ADR-014 Phase 1).
@@ -24,9 +24,9 @@
  * once we've measured real course sizes.
  *
  * @package    local_nucleushub
- * @copyright  2026 David Kelly <contact@davidkel.ly>
+ * @copyright  2026 David Kelly <contact@dklabs.co.uk>
  * @license    https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @author     David Kelly <contact@davidkel.ly>
+ * @author     David Kelly <contact@dklabs.co.uk>
  */
 
 namespace local_nucleushub\version;
@@ -125,15 +125,13 @@ class publisher {
             // "unknown" and log a Tier C note.
             $manifest = manifest_extractor::extract($localbackup);
 
-            $response = cp_client::from_config()->post_file(
-                '/course-versions/' . rawurlencode($versionguid) . '/snapshot',
-                $localbackup
-            );
+            $response = self::send_snapshot($versionguid, $localbackup);
             if (!isset($response['ref'], $response['hash'], $response['size'])) {
                 throw new \moodle_exception(
                     'cpbadresponse',
                     'local_nucleushub',
                     '',
+                    null,
                     json_encode($response)
                 );
             }
@@ -368,6 +366,7 @@ class publisher {
             $userid
         );
         try {
+            self::exclude_people($bc);
             $bc->execute_plan();
             $results = $bc->get_results();
             if (empty($results['backup_destination']) ||
@@ -398,6 +397,34 @@ class publisher {
             return $tmppath;
         } finally {
             $bc->destroy();
+        }
+    }
+
+    /**
+     * A shared course version carries the course, never people. The
+     * site's general backup defaults include enrolled users, so turn
+     * users off explicitly (even where the site has locked the default
+     * on), which also switches off everything that hangs off users:
+     * role assignments, comments, completion, logs and grade history.
+     * Anything user-related left on after that is turned off too.
+     *
+     * @param \backup_controller $bc Controller before execute_plan().
+     */
+    public static function exclude_people(\backup_controller $bc): void {
+        $plan = $bc->get_plan();
+        $names = ['users', 'role_assignments', 'comments', 'userscompletion', 'logs', 'grade_histories'];
+        foreach ($names as $name) {
+            if (!$plan->setting_exists($name)) {
+                continue;
+            }
+            $setting = $plan->get_setting($name);
+            if (!$setting->get_value()) {
+                continue;
+            }
+            if ($setting->get_status() !== \backup_setting::NOT_LOCKED) {
+                $setting->set_status(\backup_setting::NOT_LOCKED);
+            }
+            $setting->set_value(false);
         }
     }
 
@@ -485,5 +512,36 @@ class publisher {
             substr($hex, 16, 4),
             substr($hex, 20, 12)
         );
+    }
+
+    /**
+     * Send the snapshot to the control plane's custody.
+     *
+     * Direct: ask for a signed upload URL, PUT the file straight into Cloud
+     * Storage, then report its sha256 and size. Nothing large passes through
+     * the control plane, which caps a request at 32 MiB, far below a real
+     * course. Falls back to streaming it through the control plane when
+     * direct transfer isn't offered (dev, or an older control plane).
+     *
+     * @param string $versionguid Version guid.
+     * @param string $localbackup Path to the .mbz.
+     * @return array The receipt: ref, hash, size.
+     */
+    private static function send_snapshot(string $versionguid, string $localbackup): array {
+        $client = cp_client::from_config();
+        $base = '/course-versions/' . rawurlencode($versionguid) . '/snapshot';
+        try {
+            $upload = $client->post_json($base . '/upload-url');
+        } catch (\local_nucleuscommon\transport\cp_client_exception $e) {
+            if ($e->httpstatus !== 404) {
+                throw $e;
+            }
+            return $client->post_file($base, $localbackup);
+        }
+        cp_client::put_file_to_url($upload['url'], $localbackup, $upload['headers'] ?? []);
+        return $client->post_json($base . '/complete', [
+            'hash' => hash_file('sha256', $localbackup),
+            'size' => filesize($localbackup),
+        ]);
     }
 }

@@ -8,11 +8,11 @@
 //
 // Moodle is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with Moodle. If not, see <https://www.gnu.org/licenses/>.
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
  * ADR-020 — join_federation.php.
@@ -35,9 +35,9 @@
  * + re-stamps it. Safe to run twice if the first call errored mid-write.
  *
  * @package    local_nucleuscommon
- * @copyright  2026 David Kelly <contact@davidkel.ly>
+ * @copyright  2026 David Kelly <contact@dklabs.co.uk>
  * @license    https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @author     David Kelly <contact@davidkel.ly>
+ * @author     David Kelly <contact@dklabs.co.uk>
  */
 
 define('CLI_SCRIPT', true);
@@ -66,25 +66,24 @@ if ($unrecognised) {
 
 if ($options['help'] || !$options['hub-url'] || !$options['token']) {
     cli_writeln(<<<HELP
-Nucleus federation join — register this Moodle as an external spoke.
+Join a Nucleus federation - registers this Moodle as a spoke.
 
 Usage:
     php join_federation.php --hub-url=<URL> --token=<NUCJ-...>
 
 Options:
-    --hub-url   The control-plane base URL of the federation, given to you
-                by the federation owner. Example: https://app.nucleuslms.io/api
-    --token     The one-time join token from the operator portal. Format
-                is NUCJ-XXXX-XXXX-... (or the same value with the dashes
-                removed; both are accepted).
-    --force     Re-join even if this Moodle is already configured for a
-                federation. USE WITH CARE — switching federations mid-
-                flight will leave course versions in an inconsistent state.
+    --hub-url   The Nucleus API URL the federation owner gave you.
+                Example: https://nucleus.dklabs.co.uk/api
+    --token     The one-time join token from the Nucleus portal, in the
+                form NUCJ-XXXX-XXXX-... (with or without the hyphens).
+    --force     Join even if this Moodle already belongs to a federation.
+                Use with care - switching federations leaves pulled course
+                versions out of step.
     --help      Show this help.
 
-After a successful join you'll see a summary block printing the spoke id
-and the federation id. Keep these for support purposes; the federation
-owner will see your spoke appear in their portal automatically.
+When the join works, it prints the spoke ID and the federation ID. Keep
+them: quote the spoke ID if you contact contact@dklabs.co.uk. The
+federation owner sees the spoke in their portal straight away.
 HELP);
     exit($options['help'] ? 0 : 1);
 }
@@ -100,9 +99,9 @@ foreach ($required as $component) {
 }
 if ($missing) {
     cli_error(
-        "Missing plugin(s): " . implode(', ', $missing) . ".\n"
-        . "Install them first from https://github.com/davidjaykelly/nucleus-moodle-plugins\n"
-        . "and run `php admin/cli/upgrade.php` before re-running this script."
+        "Missing plugins: " . implode(', ', $missing) . ".\n"
+        . "Install them from https://github.com/davidjaykelly/nucleus-moodle-plugins,\n"
+        . "run 'php admin/cli/upgrade.php', then run this script again."
     );
 }
 
@@ -113,30 +112,30 @@ $existingbase = (string) get_config('local_nucleuscommon', 'cpbaseurl');
 $existingsecret = (string) get_config('local_nucleuscommon', 'cpsecret');
 if (!empty($existingbase) && !empty($existingsecret) && empty($options['force'])) {
     cli_error(
-        "This Moodle is already registered with a federation:\n"
-        . "  cpbaseurl  = {$existingbase}\n"
-        . "  federationid = " . get_config('local_nucleuscommon', 'federationid') . "\n"
-        . "Pass --force to overwrite, or contact your federation owner if\n"
-        . "you didn't expect this state."
+        "This Moodle already belongs to a federation:\n"
+        . "  Nucleus API URL : {$existingbase}\n"
+        . "  Federation ID   : " . get_config('local_nucleuscommon', 'federationid') . "\n"
+        . "Use --force to join a different one, or ask your federation owner\n"
+        . "if you didn't expect this."
     );
 }
 
 // 2. Mint the CP→spoke web-service token *before* registering. The
-//    register response will store the same token on the CP's spoke
-//    row, which is what every CP→spoke endpoint (course-instances,
-//    preview, content-pull) authenticates against. Provisioning here
-//    avoids the manual "authorise admin → create token" dance the
-//    operator otherwise has to do via the Moodle admin UI.
-//    Idempotent: re-running join with the same Moodle reuses the
-//    existing token.
-cli_writeln('Provisioning control-plane WS token...');
+// register response will store the same token on the CP's spoke
+// row, which is what every CP→spoke endpoint (course-instances,
+// preview, content-pull) authenticates against. Provisioning here
+// avoids the manual "authorise admin → create token" dance the
+// operator otherwise has to do via the Moodle admin UI.
+// Idempotent: re-running join with the same Moodle reuses the
+// existing token.
+cli_writeln('Creating the Nucleus web service token...');
 try {
     $cpwstoken = \local_nucleuscommon\token\cp_provisioner::ensure_token('nucleus_cp_spoke');
 } catch (\Throwable $e) {
     cli_error(
-        'Failed to mint CP web-service token: ' . $e->getMessage() . "\n"
+        "Couldn't create the Nucleus web service token: " . $e->getMessage() . "\n"
         . "Check that local_nucleusspoke is installed and upgraded\n"
-        . "(it registers the `nucleus_cp_spoke` external service)."
+        . "(it registers the 'nucleus_cp_spoke' web service)."
     );
 }
 
@@ -178,7 +177,7 @@ if ($status !== 200) {
         $hub = rtrim($options['hub-url'], '/');
         if (!preg_match('@/api(/|$)@', $hub)) {
             cli_error(
-                "Register failed (HTTP {$status}). Looks like the hub-url is missing the /api suffix.\n"
+                "Couldn't join (HTTP {$status}). The --hub-url looks like it's missing /api at the end.\n"
                 . "Try: --hub-url={$hub}/api"
             );
         }
@@ -192,27 +191,29 @@ if ($status !== 200) {
             ? (isset($decoded['message']) ? $decoded['message'] : json_encode($decoded))
             : substr((string) $response, 0, 500);
     }
-    cli_error("Register failed (HTTP {$status}): {$reason}");
+    cli_error("Couldn't join (HTTP {$status}): {$reason}");
 }
 
 $result = json_decode((string) $response, true);
-if (!is_array($result) || empty($result['spokeId']) || empty($result['cpBaseUrl'])
-    || empty($result['cpSecret']) || empty($result['hubWwwroot'])) {
-    cli_error("Register response was not in the expected shape: " . substr((string) $response, 0, 500));
+if (
+    !is_array($result) || empty($result['spokeId']) || empty($result['cpBaseUrl'])
+    || empty($result['cpSecret']) || empty($result['hubWwwroot'])
+) {
+    cli_error("Nucleus sent an unexpected reply: " . substr((string) $response, 0, 500));
 }
 
 // 3. Stamp the config.
-set_config('cpbaseurl',     $result['cpBaseUrl'],   'local_nucleuscommon');
-set_config('cpsecret',      $result['cpSecret'],    'local_nucleuscommon');
-set_config('cpportalurl',   '',                     'local_nucleuscommon');
-set_config('federationid',  $result['federationId'], 'local_nucleuscommon');
-set_config('externalspokeid', $result['spokeId'],   'local_nucleuscommon');
+set_config('cpbaseurl', $result['cpBaseUrl'], 'local_nucleuscommon');
+set_config('cpsecret', $result['cpSecret'], 'local_nucleuscommon');
+set_config('cpportalurl', '', 'local_nucleuscommon');
+set_config('federationid', $result['federationId'], 'local_nucleuscommon');
+set_config('externalspokeid', $result['spokeId'], 'local_nucleuscommon');
 
-set_config('hubwwwroot',    $result['hubWwwroot'],  'local_nucleusspoke');
-// hubtoken is the per-spoke Moodle WS token the hub minted via
+set_config('hubwwwroot', $result['hubWwwroot'], 'local_nucleusspoke');
+// The hubtoken is the per-spoke Moodle WS token the hub minted via
 // local_nucleushub_register_spoke during the register handshake.
 // The hub validates this against `external_tokens` on every spoke→hub
-// WS call (list_families, request_course_copy, etc.). Falls back to
+// WS call (list_families, describe_version, etc.). Falls back to
 // cpSecret for older CP versions that don't return hubToken; that
 // older fallback only worked when the hub was specifically configured
 // to accept the federation-node secret as a wstoken (rare).
@@ -221,37 +222,34 @@ if (!empty($result['hubToken'])) {
 } else {
     set_config('hubtoken', $result['cpSecret'], 'local_nucleusspoke');
 }
-// spokename = the slug the operator picked when minting the invite.
-// It's the Redis Streams consumer-group identifier; without it the
-// settings page renders the default "default" placeholder which would
-// collide if more than one external spoke joined this hub. Falls back
-// to nothing (Moodle keeps its 'default' default) on older CP versions
-// that don't return slug in the register response.
+// The spokename is the slug the operator picked when minting the invite.
+// Without it the settings page shows the default "default", which would
+// be ambiguous if more than one external spoke joined this hub. Falls
+// back to nothing (Moodle keeps its 'default' default) on older CP
+// versions that don't return slug in the register response.
 if (!empty($result['slug'])) {
     set_config('spokename', $result['slug'], 'local_nucleusspoke');
 }
-// hubconnecturl stays empty for external spokes — they reach the hub
+// The hubconnecturl stays empty for external spokes: they reach the hub
 // at its public wwwroot, not via in-cluster DNS. The spoke admin can
 // override later from settings if their network blocks public reach.
 set_config('hubconnecturl', '', 'local_nucleusspoke');
 
 // 4. Success summary.
 cli_writeln('');
-cli_writeln('────────────────────────────────────────────────────────────');
-cli_writeln(' Joined Nucleus federation.');
-cli_writeln('────────────────────────────────────────────────────────────');
+cli_writeln('Joined the Nucleus federation.');
 cli_writeln('');
-cli_writeln('  Federation id : ' . $result['federationId']);
-cli_writeln('  Spoke id      : ' . $result['spokeId']);
-cli_writeln('  Hub wwwroot   : ' . $result['hubWwwroot']);
-cli_writeln('  CP base url   : ' . $result['cpBaseUrl']);
+cli_writeln('  Federation ID   : ' . $result['federationId']);
+cli_writeln('  Spoke ID        : ' . $result['spokeId']);
+cli_writeln('  Hub URL         : ' . $result['hubWwwroot']);
+cli_writeln('  Nucleus API URL : ' . $result['cpBaseUrl']);
 cli_writeln('');
-cli_writeln('  Keep the spoke id for support tickets. Your federation owner');
-cli_writeln('  will see this site appear as a running spoke in their portal');
-cli_writeln('  within a few seconds.');
+cli_writeln('  Keep the spoke ID - quote it if you contact contact@dklabs.co.uk.');
+cli_writeln('  The federation owner sees this site in their portal within a few');
+cli_writeln('  seconds.');
 cli_writeln('');
-cli_writeln('  Next step: push course versions from the hub and they will');
-cli_writeln('  appear in this Moodle\'s catalogue (Site admin → Plugins →');
-cli_writeln('  Local plugins → Nucleus federation spoke).');
+cli_writeln('  Next: when the hub publishes course versions, they appear in the');
+cli_writeln('  Nucleus catalogue on this site (Site administration > Plugins >');
+cli_writeln('  Local plugins > Nucleus > Catalogue).');
 cli_writeln('');
 exit(0);

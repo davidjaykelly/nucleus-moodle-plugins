@@ -8,23 +8,25 @@
 //
 // Moodle is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with Moodle. If not, see <https://www.gnu.org/licenses/>.
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
  * ADR-021 Tier A — pre-flight a hub version manifest against this
  * spoke's environment.
  *
  * @package    local_nucleusspoke
- * @copyright  2026 David Kelly <contact@davidkel.ly>
+ * @copyright  2026 David Kelly <contact@dklabs.co.uk>
  * @license    https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @author     David Kelly <contact@davidkel.ly>
+ * @author     David Kelly <contact@dklabs.co.uk>
  */
 
 namespace local_nucleusspoke\version;
+
+use local_nucleuscommon\local\site;
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -75,23 +77,21 @@ class manifest_checker {
             // Pre-ADR-021 versions have no manifest. v1 policy: allow
             // pull, surface a Tier C note. Customers with truly old
             // versions can re-publish once they've upgraded.
-            $result['notes'][] = 'No manifest on this version (published before ADR-021); '
-                . 'plugin compatibility was not pre-flighted. Restore precheck still '
-                . 'runs as the second line of defence.';
+            $result['notes'][] = get_string('manifest_note_nomanifest', 'local_nucleusspoke');
             return $result;
         }
 
         $raw = (string) ($describe['manifest'] ?? '');
         if ($raw === '') {
             $result['manifest_status'] = 'missing';
-            $result['notes'][] = 'Manifest field empty despite hasmanifest=true; treating as missing.';
+            $result['notes'][] = get_string('manifest_note_empty', 'local_nucleusspoke');
             return $result;
         }
 
         $manifest = json_decode($raw, true);
         if (!is_array($manifest)) {
             $result['manifest_status'] = 'malformed';
-            $result['notes'][] = 'Manifest JSON failed to parse on the spoke side.';
+            $result['notes'][] = get_string('manifest_note_malformed', 'local_nucleusspoke');
             return $result;
         }
         $result['manifest'] = $manifest;
@@ -102,7 +102,8 @@ class manifest_checker {
         // flag.
         if (!empty($manifest['extractor_error'])) {
             $result['manifest_status'] = 'extractor_error';
-            $result['notes'][] = 'Hub-side extractor reported: ' . (string) $manifest['extractor_error'];
+            $result['notes'][] = get_string('manifest_note_extractor', 'local_nucleusspoke',
+                (string) $manifest['extractor_error']);
             return $result;
         }
 
@@ -118,15 +119,13 @@ class manifest_checker {
             if ($spokebranch !== '' && self::is_older($spokebranch, $hubbranch)) {
                 $result['blockers'][] = [
                     'kind' => 'moodle_version_too_old',
-                    'detail' => sprintf(
-                        'This backup was taken on Moodle %s; this spoke is on %s.',
-                        $hubbranch,
-                        $spokebranch
-                    ),
-                    'remediation' => sprintf(
-                        'Upgrade this spoke to Moodle %s or newer, then retry the pull.',
-                        $hubbranch
-                    ),
+                    'detail' => get_string('blocker_moodle_detail', 'local_nucleusspoke', (object) [
+                        'hub' => $hubbranch,
+                        'spoke' => $spokebranch,
+                    ]),
+                    'remediation' => site::is_hosted()
+                        ? get_string('blocker_moodle_remedy_hosted', 'local_nucleusspoke', $hubbranch)
+                        : get_string('blocker_moodle_remedy', 'local_nucleusspoke', $hubbranch),
                 ];
             }
         }
@@ -155,14 +154,11 @@ class manifest_checker {
             $state = 'present';
             if ($hubversion > 0 && $spokeversion > 0 && $spokeversion < $hubversion) {
                 $state = 'older';
-                $result['notes'][] = sprintf(
-                    'mod_%s on this spoke (v%d) is older than the version the backup was '
-                        . 'taken with (v%d). Most courses restore cleanly across minor plugin '
-                        . 'drift, but specific features may not render identically.',
-                    $name,
-                    $spokeversion,
-                    $hubversion
-                );
+                $result['notes'][] = get_string('manifest_note_older', 'local_nucleusspoke', (object) [
+                    'name' => $name,
+                    'local' => $spokeversion,
+                    'expected' => $hubversion,
+                ]);
             }
             $modstatus[] = [
                 'name' => $name,
@@ -189,15 +185,13 @@ class manifest_checker {
             sort($missing);
             $result['blockers'][] = [
                 'kind' => 'missing_plugins',
-                'detail' => sprintf(
-                    'This course uses %d Moodle plugin%s not installed on this spoke: %s.',
-                    count($missing),
-                    count($missing) === 1 ? '' : 's',
-                    implode(', ', array_map(fn ($m) => 'mod_' . $m, $missing))
-                ),
-                'remediation' => 'Install the listed plugins on this spoke (Site administration → '
-                    . 'Plugins → Install plugins) and retry the pull. Alternatively, ask the '
-                    . 'hub admin to publish a version of the course that doesn\'t use these.',
+                'detail' => get_string('blocker_plugins_detail', 'local_nucleusspoke',
+                    implode(', ', array_map(fn ($m) => 'mod_' . $m, $missing))),
+                // Hosted sites can't install plugins themselves: the code
+                // is part of the image.
+                'remediation' => site::is_hosted()
+                    ? get_string('blocker_plugins_remedy_hosted', 'local_nucleusspoke')
+                    : get_string('blocker_plugins_remedy', 'local_nucleusspoke'),
             ];
         }
 

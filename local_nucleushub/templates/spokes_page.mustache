@@ -1,0 +1,75 @@
+{{!
+    This file is part of Moodle - https://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
+}}
+{{!
+    @template local_nucleushub/spokes_page
+
+    Spokes: the sites connected to this hub. Uses the site's theme.
+
+    Context variables required for this template:
+    * hasspokes - Whether there are any.
+    * spokes - name, active, status, url, joined, lastseen, stale, spokeid.
+    * summary - Spoke and family counts.
+
+    Example context (json):
+    {
+        "hasspokes": true,
+        "spokes": [
+            {"name": "north-campus", "active": true, "status": "Active", "url": "https://north-campus.n.dklabs.co.uk",
+             "joined": "12/09/26, 10:14", "lastseen": "5 mins ago", "stale": false, "spokeid": "cm1abc"}
+        ],
+        "summary": "Spokes: 1. Course families on this hub: 4."
+    }
+}}
+<div class="local-nucleushub-spokes">
+    <p>{{#str}}spokes_toolbar_hint, local_nucleushub{{/str}}</p>
+    {{#hasspokes}}
+    <div class="table-responsive">
+        <table class="generaltable table-sm w-100">
+            <caption class="visually-hidden">{{#str}}spokes_title, local_nucleushub{{/str}}</caption>
+            <thead>
+                <tr>
+                    <th scope="col">{{#str}}spokes_col_name, local_nucleushub{{/str}}</th>
+                    <th scope="col">{{#str}}spokes_col_status, local_nucleushub{{/str}}</th>
+                    <th scope="col">{{#str}}spokes_col_address, local_nucleushub{{/str}}</th>
+                    <th scope="col">{{#str}}spokes_registered, local_nucleushub{{/str}}</th>
+                    <th scope="col">{{#str}}spokes_lastseen, local_nucleushub{{/str}}</th>
+                    <th scope="col">{{#str}}spokes_cpid, local_nucleushub{{/str}}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#spokes}}
+                <tr>
+                    <td>{{name}}</td>
+                    <td><span class="badge {{#active}}text-bg-success{{/active}}{{^active}}text-bg-secondary{{/active}}">{{status}}</span></td>
+                    <td class="text-break"><a href="{{url}}" target="_blank" rel="noopener">{{url}} {{#pix}}i/externallink, core, {{#str}}opensinnewwindow{{/str}}{{/pix}}</a></td>
+                    <td>{{joined}}</td>
+                    <td>{{#stale}}<span class="text-warning-emphasis">{{lastseen}}</span>{{/stale}}{{^stale}}{{lastseen}}{{/stale}}</td>
+                    <td><code>{{spokeid}}</code></td>
+                </tr>
+                {{/spokes}}
+            </tbody>
+        </table>
+    </div>
+    <p class="text-muted">{{summary}}</p>
+    {{/hasspokes}}
+    {{^hasspokes}}
+    <div class="alert alert-info" role="status">
+        <p class="fw-bold mb-1">{{#str}}spokes_empty_title, local_nucleushub{{/str}}</p>
+        <p class="mb-0">{{#str}}spokes_empty_hint, local_nucleushub{{/str}}</p>
+    </div>
+    {{/hasspokes}}
+</div>

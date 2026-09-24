@@ -8,17 +8,17 @@
 //
 // Moodle is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with Moodle. If not, see <https://www.gnu.org/licenses/>.
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
  * HTTP client for calling hub external functions from a spoke.
  *
  * @package    local_nucleuscommon
- * @copyright  2026 David Kelly <contact@davidkel.ly>
+ * @copyright  2026 David Kelly <contact@dklabs.co.uk>
  * @license    https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -102,11 +102,7 @@ class hub_client {
 
         // The Host header value. Parsed from wwwroot so the remote end
         // sees exactly what it expects and skips the mismatch-redirect.
-        $wwwrootparts = parse_url($this->wwwroot);
-        $hostheader = $wwwrootparts['host'] ?? '';
-        if (isset($wwwrootparts['port'])) {
-            $hostheader .= ':' . $wwwrootparts['port'];
-        }
+        $hostheader = self::host_header($this->wwwroot);
 
         $attempt = 0;
         $lasterror = null;
@@ -114,13 +110,15 @@ class hub_client {
             // ignoresecurity=true: hubwwwroot is an admin-configured internal
             // address, often a private docker/k8s IP, which Moodle's curl
             // helper blocks by default. Federation traffic is never
-            // user-controlled so it's safe to bypass here.
+            // user-controlled so it's safe to bypass here. That helper is
+            // about which hosts may be called, not TLS: certificates are
+            // still verified on https (tls_options()).
             $curl = new \curl(['ignoresecurity' => true]);
-            $curl->setopt([
+            $curl->setopt(array_merge([
                 'CURLOPT_TIMEOUT' => $this->timeout,
                 'CURLOPT_CONNECTTIMEOUT' => min(10, $this->timeout),
                 'CURLOPT_FOLLOWLOCATION' => false,
-            ]);
+            ], self::tls_options($url)));
             if ($hostheader !== '' && $this->connecturl !== $this->wwwroot) {
                 $curl->setHeader(['Host: ' . $hostheader]);
             }
@@ -146,68 +144,45 @@ class hub_client {
     }
 
     /**
-     * Download a binary resource from the hub to a local file.
+     * TLS options for a request to this URL.
      *
-     * Mirrors `call()` for path/Host handling — TCP goes to
-     * $connecturl, Host header matches $wwwroot — but hits a non-WS
-     * endpoint and writes the body to disk.
+     * Moodle's curl class doesn't verify the server's certificate by
+     * default (CURLOPT_SSL_VERIFYPEER is 0). Whenever the URL actually
+     * requested is https, verify the certificate and that it names the
+     * host. Plain http (an internal connect address) is left as it is.
      *
-     * @param string $path URL path (e.g. `/local/nucleushub/download.php`).
-     * @param array $params Extra query parameters (excluding wstoken).
-     * @param string $localpath Destination filesystem path.
-     * @return bool True on HTTP 2xx, false otherwise. The file at $localpath is truncated either way.
-     * @throws \moodle_exception On transport-level failure after retries.
+     * Shared with {@see hub_http}.
+     *
+     * @param string $url The URL curl connects to.
+     * @return array Curl options.
      */
-    public function download_to_file(string $path, array $params, string $localpath): bool {
-        $url = $this->connecturl . $path;
-        $query = ['wstoken' => $this->token] + $params;
-        // Force `&` as the separator. Moodle's PHP config sets
-        // arg_separator.output to `&amp;` (right for HTML contexts,
-        // wrong for URLs we build ourselves). Without this override the
-        // remote endpoint sees one malformed parameter like
-        // "wstoken=X&amp;file=Y" and misses our `file` param entirely.
-        $url .= '?' . http_build_query($query, '', '&');
-
-        $wwwrootparts = parse_url($this->wwwroot);
-        $hostheader = $wwwrootparts['host'] ?? '';
-        if (isset($wwwrootparts['port'])) {
-            $hostheader .= ':' . $wwwrootparts['port'];
+    public static function tls_options(string $url): array {
+        if (strtolower((string) parse_url($url, PHP_URL_SCHEME)) !== 'https') {
+            return [];
         }
+        return [
+            'CURLOPT_SSL_VERIFYPEER' => 1,
+            'CURLOPT_SSL_VERIFYHOST' => 2,
+        ];
+    }
 
-        $attempt = 0;
-        $lasterror = null;
-        do {
-            $curl = new \curl(['ignoresecurity' => true]);
-            $curl->setopt([
-                'CURLOPT_TIMEOUT' => max($this->timeout, 300),  // larger window for file downloads
-                'CURLOPT_CONNECTTIMEOUT' => min(10, $this->timeout),
-                'CURLOPT_FOLLOWLOCATION' => false,
-            ]);
-            if ($hostheader !== '' && $this->connecturl !== $this->wwwroot) {
-                $curl->setHeader(['Host: ' . $hostheader]);
-            }
-
-            $response = $curl->get($url);
-            $info = $curl->get_info();
-            $errno = $curl->get_errno();
-            $httpcode = $info['http_code'] ?? 0;
-
-            if ($errno === 0 && $httpcode >= 200 && $httpcode < 300) {
-                if (file_put_contents($localpath, $response) === false) {
-                    throw new \moodle_exception('huberror', 'local_nucleuscommon', '', "could not write download to {$localpath}",
-                        "could not write download to {$localpath}");
-                }
-                return true;
-            }
-
-            $lasterror = sprintf(
-                'hub download %s failed: http=%s curl_errno=%d body=%s',
-                $path, $httpcode, $errno, substr((string)$response, 0, 200)
-            );
-            $attempt++;
-        } while ($attempt <= $this->maxretries);
-
-        throw new \moodle_exception('huberror', 'local_nucleuscommon', '', $lasterror, $lasterror);
+    /**
+     * The Host header value for a hub: its wwwroot's host, plus the port
+     * when the wwwroot has one.
+     *
+     * Shared with {@see hub_http}, so every request to the hub over an
+     * internal connect address presents the same Host.
+     *
+     * @param string $wwwroot The hub's wwwroot.
+     * @return string Host header value, or '' if the wwwroot has no host.
+     */
+    public static function host_header(string $wwwroot): string {
+        $parts = parse_url($wwwroot);
+        $host = $parts['host'] ?? '';
+        if ($host !== '' && isset($parts['port'])) {
+            $host .= ':' . $parts['port'];
+        }
+        return $host;
     }
 
     /**

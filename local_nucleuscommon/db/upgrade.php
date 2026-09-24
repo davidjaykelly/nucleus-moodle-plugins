@@ -8,19 +8,19 @@
 //
 // Moodle is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with Moodle. If not, see <https://www.gnu.org/licenses/>.
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
  * Upgrade steps for local_nucleuscommon.
  *
  * @package    local_nucleuscommon
- * @copyright  2026 David Kelly <contact@davidkel.ly>
+ * @copyright  2026 David Kelly <contact@dklabs.co.uk>
  * @license    https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @author     David Kelly <contact@davidkel.ly>
+ * @author     David Kelly <contact@dklabs.co.uk>
  */
 
 defined('MOODLE_INTERNAL') || die();
@@ -106,6 +106,14 @@ function xmldb_local_nucleuscommon_upgrade(int $oldversion): bool {
         }
 
         upgrade_plugin_savepoint(true, 2026043003, 'local', 'nucleuscommon');
+    }
+
+    if ($oldversion < 2026092404) {
+        // ADR-023: federation modes are gone. Every federation shares
+        // courses, so the federationmode setting has nothing to say.
+        unset_config('federationmode', 'local_nucleuscommon');
+
+        upgrade_plugin_savepoint(true, 2026092404, 'local', 'nucleuscommon');
     }
 
     return true;

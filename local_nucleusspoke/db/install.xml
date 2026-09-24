@@ -1,27 +1,9 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="local/nucleusspoke/db" VERSION="20260424" COMMENT="Nucleus federation spoke — local mapping of federation-participating courses plus course-versioning instance / notification state (ADR-014)."
+<XMLDB PATH="local/nucleusspoke/db" VERSION="20260924" COMMENT="Nucleus federation spoke — course-versioning instance / notification state (ADR-014)."
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../../lib/xmldb/xmldb.xsd"
 >
   <TABLES>
-    <TABLE NAME="local_nucleusspoke_courses" COMMENT="One row per local course that participates in the federation. Mode 'content' rows are local copies restored from a hub MBZ; mode 'identity' rows are placeholders whose enrolments get mirrored to the hub.">
-      <FIELDS>
-        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
-        <FIELD NAME="localcourseid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="mdl_course.id on this spoke"/>
-        <FIELD NAME="hubcourseid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Corresponding course id on the hub"/>
-        <FIELD NAME="mode" TYPE="char" LENGTH="20" NOTNULL="true" SEQUENCE="false" COMMENT="content | identity — matches the mode at the time the association was created"/>
-        <FIELD NAME="timesynced" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Unix time of the last sync (backup restore for content, enablement for identity)"/>
-        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
-      </FIELDS>
-      <KEYS>
-        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
-        <KEY NAME="localcourseid_fk" TYPE="foreign" FIELDS="localcourseid" REFTABLE="course" REFFIELDS="id"/>
-      </KEYS>
-      <INDEXES>
-        <INDEX NAME="localcourseid" UNIQUE="true" FIELDS="localcourseid" COMMENT="One federation row per local course."/>
-        <INDEX NAME="hubcourseid" UNIQUE="false" FIELDS="hubcourseid" COMMENT="Reverse lookup by hub course id (one hub course can map to multiple local rows only across time, not concurrently)."/>
-      </INDEXES>
-    </TABLE>
     <TABLE NAME="local_nucleusspoke_instance" COMMENT="Spoke-side tracking for a local course that is pinned to a specific version of a hub-published course family. One row per pulled Moodle course. The same family can have multiple instances on a spoke (e.g. v1.0 running while v1.1 pulled as a new instance) — per ADR-014 spokes never replace in place."
 >
       <FIELDS>

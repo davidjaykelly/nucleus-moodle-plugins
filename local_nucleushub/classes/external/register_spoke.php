@@ -8,23 +8,17 @@
 //
 // Moodle is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with Moodle. If not, see <https://www.gnu.org/licenses/>.
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
  * External function: local_nucleushub_register_spoke.
  *
- * Idempotent: ensures the hub knows about a spoke and has a permanent
- * web-service token the spoke can use to call back into the hub
- * (`nucleus_federation` service). Replaces the manual Phase-0
- * `seed_phase0.php` step for production tenants — the control plane
- * calls this once per spoke at provision time.
- *
  * @package    local_nucleushub
- * @copyright  2026 David Kelly <contact@davidkel.ly>
+ * @copyright  2026 David Kelly <contact@dklabs.co.uk>
  * @license    https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -34,126 +28,224 @@ use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_single_structure;
 use core_external\external_value;
+use local_nucleushub\local\oidc\client_registry;
+use local_nucleushub\local\spoke_identity;
 
-defined('MOODLE_INTERNAL') || die();
-
+/**
+ * Register a spoke with this hub and return the token it calls the hub with.
+ *
+ * The control plane calls this when it provisions a spoke or an external
+ * spoke joins, then pushes the token to the spoke (configure_hub).
+ *
+ * Each spoke gets its own hub service account and its own permanent
+ * token for the `nucleus_federation` service (ADR-023 section 6); see
+ * {@see spoke_identity}. Idempotent: calling it again for the same
+ * wwwroot reuses the spoke's account and returns the same token.
+ *
+ * An address another Nucleus spoke still holds is refused
+ * (`spokeurlinuse`), comparing scheme and host without regard to case
+ * and ignoring default ports: one spoke can't take over another's hub
+ * account, token or sign-in client by claiming its address. Only a
+ * removed spoke's address, or a row with no Nucleus spoke ID, can be
+ * taken over.
+ *
+ * When every active spoke has its own account, the site admin token
+ * all spokes used to share is deleted (see
+ * {@see spoke_identity::retire_shared_token()}).
+ *
+ * @package    local_nucleushub
+ * @copyright  2026 David Kelly <contact@dklabs.co.uk>
+ * @license    https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
 class register_spoke extends external_api {
-
+    /**
+     * Parameters.
+     *
+     * @return external_function_parameters
+     */
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters([
             'wwwroot'    => new external_value(PARAM_URL, 'Spoke browser-facing URL (e.g. https://acme.example.com)'),
             'name'       => new external_value(PARAM_TEXT, 'Operator-facing spoke name / slug'),
             'cpspokeid'  => new external_value(
                 PARAM_RAW,
-                'Control-plane Spoke.id (cuid). Optional — older callers can omit.',
+                'Nucleus spoke ID. Optional - older callers can leave it out.',
                 VALUE_DEFAULT,
                 ''
             ),
         ]);
     }
 
+    /**
+     * Register the spoke, give it its own hub account, and return that account's token.
+     *
+     * @param string $wwwroot
+     * @param string $name
+     * @param string $cpspokeid
+     * @return array{token: string, spokeId: int}
+     */
     public static function execute(string $wwwroot, string $name, string $cpspokeid = ''): array {
-        global $DB, $CFG;
+        global $DB;
 
-        $params = self::validate_parameters(self::execute_parameters(),
-            ['wwwroot' => $wwwroot, 'name' => $name, 'cpspokeid' => $cpspokeid]);
+        $params = self::validate_parameters(
+            self::execute_parameters(),
+            ['wwwroot' => $wwwroot, 'name' => $name, 'cpspokeid' => $cpspokeid]
+        );
         $wwwroot = trim($params['wwwroot'], '/');
         $name = trim($params['name']);
         $cpspokeid = trim($params['cpspokeid']);
-
-        // 1. Ensure WS + REST are enabled (idempotent — Moodle's
-        //    `set_config` is a write-then-rebuild, only does work
-        //    when the value actually changes).
-        if (!get_config('core', 'enablewebservices')) {
-            set_config('enablewebservices', 1);
-        }
-        $existing = get_config('core', 'webserviceprotocols');
-        $protocols = ($existing && is_string($existing)) ? explode(',', $existing) : [];
-        if (!in_array('rest', $protocols, true)) {
-            $protocols[] = 'rest';
-            set_config('webserviceprotocols', implode(',', array_filter($protocols)));
+        if ($wwwroot === '') {
+            throw new \invalid_parameter_exception('wwwroot must be a URL.');
         }
 
-        // 2. nucleus_federation service must exist (declared in
-        //    db/services.php; available after plugin upgrade).
-        $service = $DB->get_record('external_services',
-            ['shortname' => 'nucleus_federation'], '*', MUST_EXIST);
-
-        // 3. Authorise the admin user against the service (the
-        //    hub-side identity that signs spoke→hub calls).
-        //    `restrictedusers=1` → external_services_users gates use.
-        $admin = get_admin();
-        if (!$DB->record_exists('external_services_users',
-                ['externalserviceid' => $service->id, 'userid' => $admin->id])) {
-            $DB->insert_record('external_services_users', (object) [
-                'externalserviceid' => $service->id,
-                'userid'            => $admin->id,
-                'timecreated'       => time(),
-            ]);
-        }
-
-        // 4. Mint or reuse a permanent token for the admin user
-        //    against this service. All spokes share the admin
-        //    token in this design — Phase 0 pattern. Per-spoke
-        //    tokens land in a future hardening pass.
-        $tokens = $DB->get_records('external_tokens', [
-            'userid'            => $admin->id,
-            'externalserviceid' => $service->id,
-            'tokentype'         => EXTERNAL_TOKEN_PERMANENT,
-        ], 'timecreated ASC');
-        if ($tokens) {
-            $tokenvalue = reset($tokens)->token;
-        } else {
-            require_once($CFG->libdir . '/externallib.php');
-            $tokenvalue = \core_external\util::generate_token(
-                EXTERNAL_TOKEN_PERMANENT,
-                $service,
-                $admin->id,
-                \context_system::instance(),
-                0,
-                '',
-                'Nucleus federation (control-plane spoke registration)'
-            );
-        }
-
-        // 5. Upsert the spoke row in `local_nucleushub_spokes`.
-        //    `wwwroot` is the natural key (the browser-facing URL
-        //    is unique per spoke). Mirrors the token onto the row
-        //    so other parts of the hub-side code that read it for
-        //    auditing have a consistent view.
+        $service = spoke_identity::service();
         $now = time();
-        $existing = $DB->get_record('local_nucleushub_spokes', ['wwwroot' => $wwwroot]);
-        if ($existing) {
-            $update = (object) [
-                'id'           => $existing->id,
-                'name'         => $name,
-                'token'        => $tokenvalue,
-                'status'       => 'active',
-                'timemodified' => $now,
-            ];
-            if ($cpspokeid !== '') {
-                $update->cpspokeid = $cpspokeid;
+        // Accounts cut off now and deleted once the registration is saved.
+        $retired = [];
+
+        // Another Nucleus spoke still at this address: refuse, and touch
+        // nothing of theirs.
+        self::refuse_if_in_use($wwwroot, $cpspokeid);
+
+        $transaction = $DB->start_delegated_transaction();
+
+        // The browser-facing URL is the natural key: one row per spoke site.
+        $spoke = $DB->get_record('local_nucleushub_spokes', ['wwwroot' => $wwwroot]);
+        if ($spoke) {
+            if (!empty($spoke->cpspokeid) && $spoke->cpspokeid !== $cpspokeid) {
+                // A removed spoke's address, taken over by a new spoke
+                // (anything else was refused above). Clear anything the
+                // old spoke left: it keeps no token or sign-in client.
+                if (!empty($spoke->serviceuserid)) {
+                    spoke_identity::revoke((int) $spoke->serviceuserid);
+                }
+                client_registry::delete_for_spoke_row((int) $spoke->id);
             }
-            $DB->update_record('local_nucleushub_spokes', $update);
-            $spokeid = (int)$existing->id;
+            $spoke->name = $name;
+            $spoke->status = 'active';
+            $spoke->timemodified = $now;
+            if ($cpspokeid !== '') {
+                $spoke->cpspokeid = $cpspokeid;
+            }
         } else {
-            $spokeid = (int)$DB->insert_record('local_nucleushub_spokes', (object) [
+            $spoke = (object) [
                 'name'         => $name,
                 'wwwroot'      => $wwwroot,
-                'token'        => $tokenvalue,
+                'token'        => '',
                 'status'       => 'active',
                 'cpspokeid'    => $cpspokeid !== '' ? $cpspokeid : null,
+                'serviceuserid' => null,
                 'timecreated'  => $now,
                 'timemodified' => $now,
-            ]);
+            ];
+            $spoke->id = $DB->insert_record('local_nucleushub_spokes', $spoke);
         }
 
+        $identity = spoke_identity::ensure($spoke, $service);
+        $spoke->serviceuserid = $identity['userid'];
+        // A copy of the token on the row, for the hub's own records.
+        $spoke->token = $identity['token'];
+        $DB->update_record('local_nucleushub_spokes', $spoke);
+
+        // The same Nucleus spoke registered at an older address is gone:
+        // one spoke, one hub account.
+        if ($cpspokeid !== '') {
+            $others = $DB->get_records_select(
+                'local_nucleushub_spokes',
+                'cpspokeid = :cpspokeid AND id <> :id AND status <> :removed',
+                ['cpspokeid' => $cpspokeid, 'id' => $spoke->id, 'removed' => 'removed']
+            );
+            foreach ($others as $other) {
+                // Its sign-in client follows it to the new address, so
+                // sign-in keeps working (ADR-023 section 3).
+                client_registry::move((int) $other->id, $spoke);
+                if (!empty($other->serviceuserid)) {
+                    spoke_identity::revoke((int) $other->serviceuserid);
+                    $retired[] = (int) $other->serviceuserid;
+                }
+                $DB->update_record('local_nucleushub_spokes', (object) [
+                    'id' => $other->id,
+                    'status' => 'removed',
+                    'token' => '',
+                    'serviceuserid' => null,
+                    'timemodified' => $now,
+                ]);
+            }
+        }
+
+        $transaction->allow_commit();
+
+        // Outside the transaction: deleting a user is a lot of work. Their
+        // tokens are already gone, so a failure here leaves nothing usable.
+        foreach ($retired as $userid) {
+            spoke_identity::remove($userid);
+        }
+        spoke_identity::retire_shared_token($service);
+
         return [
-            'token'   => $tokenvalue,
-            'spokeId' => $spokeid,
+            'token'   => $identity['token'],
+            'spokeId' => (int) $spoke->id,
         ];
     }
 
+    /**
+     * Refuse an address another Nucleus spoke still holds.
+     *
+     * A row that isn't removed and has a different (non-empty) Nucleus
+     * spoke ID holds the address. Addresses are compared with scheme and
+     * host in lower case and default ports dropped, so a change of case
+     * or an explicit :443 doesn't get round it.
+     *
+     * @param string $wwwroot The address being registered.
+     * @param string $cpspokeid The Nucleus spoke ID registering it ('' for older callers).
+     * @return void
+     * @throws \moodle_exception spokeurlinuse
+     */
+    private static function refuse_if_in_use(string $wwwroot, string $cpspokeid): void {
+        global $DB;
+
+        $wanted = self::normalise_wwwroot($wwwroot);
+        $rows = $DB->get_records_select(
+            'local_nucleushub_spokes',
+            "status <> :removed AND cpspokeid IS NOT NULL AND cpspokeid <> ''",
+            ['removed' => 'removed'],
+            '',
+            'id, wwwroot, cpspokeid'
+        );
+        foreach ($rows as $row) {
+            if ((string) $row->cpspokeid !== $cpspokeid && self::normalise_wwwroot((string) $row->wwwroot) === $wanted) {
+                throw new \moodle_exception('spokeurlinuse', 'local_nucleushub', '', s($wwwroot));
+            }
+        }
+    }
+
+    /**
+     * An address in a form for comparison: scheme and host lower case,
+     * default port dropped, no trailing slash.
+     *
+     * @param string $wwwroot
+     * @return string
+     */
+    private static function normalise_wwwroot(string $wwwroot): string {
+        $wwwroot = rtrim(trim($wwwroot), '/');
+        $parts = parse_url($wwwroot);
+        if (!$parts || empty($parts['host'])) {
+            return strtolower($wwwroot);
+        }
+        $scheme = strtolower((string) ($parts['scheme'] ?? ''));
+        $port = isset($parts['port']) ? (int) $parts['port'] : null;
+        if (($scheme === 'https' && $port === 443) || ($scheme === 'http' && $port === 80)) {
+            $port = null;
+        }
+        return $scheme . '://' . strtolower((string) $parts['host']) . ($port !== null ? ':' . $port : '')
+            . rtrim((string) ($parts['path'] ?? ''), '/');
+    }
+
+    /**
+     * Return structure.
+     *
+     * @return external_single_structure
+     */
     public static function execute_returns(): external_single_structure {
         return new external_single_structure([
             'token'   => new external_value(PARAM_RAW, 'Token the spoke uses on hub WS calls.'),

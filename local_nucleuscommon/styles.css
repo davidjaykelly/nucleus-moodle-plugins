@@ -1,0 +1,217 @@
+/*
+ * The Nucleus bar (local_nucleuscommon/statusbar).
+ *
+ * The one piece of Nucleus identity inside a customer's Moodle: a flat
+ * ink band with paper text and a single plum accent. Everything else in
+ * the Nucleus plugins uses the site's own theme. Scoped to
+ * .local-nucleuscommon-bar; this file loads on every page.
+ *
+ * Sits above everything on the page: the course index and block drawers
+ * (1015, or 1035 on small screens), the message drawer (1021/1031) and the
+ * navbar (1030). Only modals, popovers, tooltips and toasts go over it
+ * (1040 and up), as they should. The drawers and the sticky footer are
+ * moved clear of it below, so nothing ends up hidden underneath.
+ */
+.local-nucleuscommon-bar {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 1039;
+    display: flex;
+    flex-direction: column-reverse;
+    color: #f6f5f1;
+    background: #171512;
+    border-top: 1px solid rgba(246, 245, 241, 0.12);
+    font-size: 0.8125rem;
+    line-height: 1.4;
+}
+
+.local-nucleuscommon-bar a,
+.local-nucleuscommon-bar button {
+    color: inherit;
+}
+
+.local-nucleuscommon-bar a:focus-visible,
+.local-nucleuscommon-bar button:focus-visible {
+    outline: 2px solid #b88995;
+    outline-offset: 3px;
+    box-shadow: none;
+}
+
+.local-nucleuscommon-bar-strip {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 1rem;
+    min-height: 2rem;
+    padding: 0.25rem 1rem;
+}
+
+.local-nucleuscommon-bar-brand {
+    font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+.local-nucleuscommon-bar-segments {
+    display: flex;
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 1rem;
+    min-width: 0;
+}
+
+.local-nucleuscommon-bar-seg {
+    color: #b8b4aa;
+    font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+    font-size: 0.75rem;
+}
+
+.local-nucleuscommon-bar-seg-attention {
+    color: #b88995;
+    font-weight: 600;
+}
+
+.local-nucleuscommon-bar-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 1rem;
+}
+
+.local-nucleuscommon-bar-action {
+    text-decoration: underline;
+    text-decoration-color: rgba(246, 245, 241, 0.4);
+    text-underline-offset: 0.2em;
+}
+
+.local-nucleuscommon-bar-action:hover,
+.local-nucleuscommon-bar-action:focus {
+    color: #f6f5f1;
+    text-decoration-color: currentColor;
+}
+
+.local-nucleuscommon-bar-action-primary,
+.local-nucleuscommon-bar-action-primary:hover,
+.local-nucleuscommon-bar-action-primary:focus {
+    color: #b88995;
+    font-weight: 600;
+}
+
+.local-nucleuscommon-bar-action .icon {
+    width: auto;
+    height: auto;
+    margin: 0 0 0 0.25rem;
+    font-size: 0.75em;
+}
+
+.local-nucleuscommon-bar-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0;
+    background: none;
+    border: 0;
+    font: inherit;
+}
+
+.local-nucleuscommon-bar-caret {
+    width: 0.4rem;
+    height: 0.4rem;
+    border-top: 1.5px solid currentColor;
+    border-left: 1.5px solid currentColor;
+    transform: translateY(0.1rem) rotate(45deg);
+}
+
+.local-nucleuscommon-bar-open .local-nucleuscommon-bar-caret {
+    transform: translateY(-0.1rem) rotate(225deg);
+}
+
+.local-nucleuscommon-bar-panel {
+    max-height: 50vh;
+    overflow-y: auto;
+    border-bottom: 1px solid rgba(246, 245, 241, 0.12);
+}
+
+.local-nucleuscommon-bar-rows {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+    margin: 0;
+    padding: 0 1rem;
+    list-style: none;
+}
+
+.local-nucleuscommon-bar-row {
+    padding: 0.75rem 1rem 0.75rem 0;
+    border-bottom: 1px solid rgba(246, 245, 241, 0.12);
+}
+
+.local-nucleuscommon-bar-rowtitle {
+    margin: 0 0 0.25rem;
+    font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.local-nucleuscommon-bar-line {
+    margin: 0;
+    color: #b8b4aa;
+}
+
+.local-nucleuscommon-bar-notes {
+    max-height: 6rem;
+    margin-top: 0.5rem;
+    overflow-y: auto;
+    padding-left: 0.75rem;
+    border-left: 1px solid rgba(246, 245, 241, 0.12);
+    white-space: pre-wrap;
+}
+
+.local-nucleuscommon-bar-callout {
+    margin: 0.5rem 0 0;
+    color: #b88995;
+}
+
+/* Keep the end of the page and Moodle's footer button clear of the bar. */
+body.local-nucleuscommon-hasbar #page-wrapper {
+    padding-bottom: var(--local-nucleuscommon-bar-height, 2.5rem);
+}
+
+body.local-nucleuscommon-hasbar .btn-footer-popover,
+body.local-nucleuscommon-hasbar .btn-footer-communication {
+    margin-bottom: var(--local-nucleuscommon-bar-height, 2.5rem);
+}
+
+/* The course index and block drawers run the full height of the window;
+   stop them at the bar so their last items stay reachable. */
+body.local-nucleuscommon-hasbar .drawer:not(.drawer-bottom) {
+    height: calc(100vh - var(--local-nucleuscommon-bar-height, 2.5rem));
+}
+
+body.local-nucleuscommon-hasbar [data-region="right-hand-drawer"].drawer {
+    height: auto;
+    bottom: var(--local-nucleuscommon-bar-height, 2.5rem);
+}
+
+/* Moodle's sticky footer (bulk editing, grading) sits on top of the bar. */
+body.local-nucleuscommon-hasbar.hasstickyfooter .stickyfooter {
+    bottom: var(--local-nucleuscommon-bar-height, 2.5rem);
+}
+
+@media (max-width: 575.98px) {
+    .local-nucleuscommon-bar-seg:not(.local-nucleuscommon-bar-seg-attention),
+    .local-nucleuscommon-bar-action-external {
+        display: none;
+    }
+}
+
+@media print {
+    .local-nucleuscommon-bar {
+        display: none;
+    }
+}

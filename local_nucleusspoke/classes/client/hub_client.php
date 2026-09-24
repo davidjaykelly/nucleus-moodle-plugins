@@ -8,17 +8,17 @@
 //
 // Moodle is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with Moodle. If not, see <https://www.gnu.org/licenses/>.
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
  * Typed facade over the hub's web service endpoint for spoke-side callers.
  *
  * @package    local_nucleusspoke
- * @copyright  2026 David Kelly <contact@davidkel.ly>
+ * @copyright  2026 David Kelly <contact@dklabs.co.uk>
  * @license    https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -30,9 +30,12 @@ defined('MOODLE_INTERNAL') || die();
 
 /**
  * One method per hub external function, named after the function it wraps.
- * Callers (enrolment observer, admin page, event consumer) use this rather
- * than touching the low-level transport — the typed methods both document
- * the protocol in PHP and keep call sites free of WS function-name strings.
+ * Callers (the catalogue page, the puller) use this rather than touching
+ * the low-level transport — the typed methods both document the protocol
+ * in PHP and keep call sites free of WS function-name strings.
+ *
+ * The token is this spoke's own hub token (ADR-023), set by Nucleus
+ * through configure_hub.
  *
  * Construct with an existing transport for unit tests, or via
  * {@see self::default()} in production paths.
@@ -73,108 +76,12 @@ class hub_client {
     }
 
     /**
-     * List courses the hub is offering. Both modes.
+     * List courses the hub is offering.
      *
      * @return array[] Each row: ['id','shortname','fullname','summary','category']
      */
     public function list_courses(): array {
         return $this->transport->call('local_nucleushub_list_courses');
-    }
-
-    /**
-     * Mode A: ask the hub to back up a course. Response `backup_url`
-     * field is the filename the hub has stashed under its
-     * `nucleushub_backups` directory; call {@see self::fetch_backup()}
-     * to actually transfer the bytes.
-     *
-     * @param int $courseid Hub course id.
-     * @return array ['status','backup_url','size_bytes']
-     */
-    public function request_course_copy(int $courseid): array {
-        return $this->transport->call('local_nucleushub_request_course_copy', [
-            'courseid' => $courseid,
-        ]);
-    }
-
-    /**
-     * Mode A: fetch a previously-generated MBZ from the hub's download
-     * endpoint into a local file. Token is the same one used for WS
-     * calls — auth is verified on the hub side against the
-     * nucleus_federation service.
-     *
-     * @param string $filename As returned in request_course_copy()['backup_url'].
-     * @param string $localpath Destination file on this spoke.
-     * @return bool True if the download succeeded and wrote the file.
-     */
-    public function fetch_backup(string $filename, string $localpath): bool {
-        return $this->transport->download_to_file(
-            '/local/nucleushub/download.php',
-            ['file' => $filename],
-            $localpath
-        );
-    }
-
-    /**
-     * Mode B: idempotent upsert of a shadow user on the hub.
-     *
-     * @param int $spokeuserid Local user id (on this spoke).
-     * @param string $username Local username — denormalised on the hub for debugging.
-     * @param string $email Local email.
-     * @param string $firstname
-     * @param string $lastname
-     * @return array ['hubuserid','created']
-     */
-    public function project_user(int $spokeuserid, string $username, string $email,
-            string $firstname, string $lastname): array {
-        return $this->transport->call('local_nucleushub_project_user', [
-            'spokeuserid' => $spokeuserid,
-            'username'    => $username,
-            'email'       => $email,
-            'firstname'   => $firstname,
-            'lastname'    => $lastname,
-        ]);
-    }
-
-    /**
-     * Mode B: enrol a previously-projected user in a hub-hosted course.
-     *
-     * @param int $hubuserid Shadow user id (from project_user).
-     * @param int $courseid Hub course id.
-     * @return array ['enrolmentid','status']
-     */
-    public function request_enrolment(int $hubuserid, int $courseid): array {
-        return $this->transport->call('local_nucleushub_request_enrolment', [
-            'hubuserid' => $hubuserid,
-            'courseid'  => $courseid,
-        ]);
-    }
-
-    /**
-     * Mode B: remove a projected user's enrolment from a hub course.
-     *
-     * @param int $hubuserid
-     * @param int $courseid
-     * @return array ['status']
-     */
-    public function revoke_enrolment(int $hubuserid, int $courseid): array {
-        return $this->transport->call('local_nucleushub_revoke_enrolment', [
-            'hubuserid' => $hubuserid,
-            'courseid'  => $courseid,
-        ]);
-    }
-
-    /**
-     * Mode B (Phase B1 Step 5): tell the hub a spoke user has been
-     * deleted so it can clean up the projusers row + shadow user.
-     * Idempotent — `removed=false` if there was nothing to clean up.
-     *
-     * @param int $spokeuserid Local (spoke) user id of the deleted user.
-     * @return array ['removed' => bool, 'hubuserid' => int]
-     */
-    public function revoke_user(int $spokeuserid): array {
-        return $this->transport->call('local_nucleushub_revoke_user', [
-            'spokeuserid' => $spokeuserid,
-        ]);
     }
 
     /**

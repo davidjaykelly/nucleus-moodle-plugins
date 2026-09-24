@@ -8,66 +8,59 @@
 //
 // Moodle is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with Moodle. If not, see <https://www.gnu.org/licenses/>.
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
- * JSON endpoint backing the Nucleus status bar's live polling.
+ * Fresh state for the Nucleus bar (polled by local_nucleuscommon/statusbar).
  *
- * The status bar's JS (in lib.php) hits this every few seconds
- * to refresh widget state — pending counts, queue health, mode
- * changes — without forcing a full page reload. Same auth gate
- * as the bar itself: federation operators only.
+ * Returns JSON: the state hash plus the bar's segments, actions and
+ * panel as HTML rendered from the plugin's templates.
  *
  * @package    local_nucleuscommon
- * @copyright  2026 David Kelly <contact@davidkel.ly>
+ * @copyright  2026 David Kelly <contact@dklabs.co.uk>
  * @license    https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @author     David Kelly <contact@davidkel.ly>
  */
 
 define('AJAX_SCRIPT', true);
+// Don't hold the session lock while polling: the bar only reads.
+define('READ_ONLY_SESSION', true);
 
 require(__DIR__ . '/../../config.php');
-require_once($CFG->dirroot . '/local/nucleuscommon/lib.php');
+
+use local_nucleuscommon\local\site;
+use local_nucleuscommon\output\statusbar;
 
 require_login(null, false);
-
-$sys = context_system::instance();
-if (!has_capability('local/nucleushub:publish', $sys)
-        && !has_capability('local/nucleusspoke:pull', $sys)) {
-    throw new \moodle_exception('nopermissions', 'error', '', 'view status bar');
+if (!site::is_operator()) {
+    throw new \required_capability_exception(context_system::instance(), 'local/nucleushub:publish', 'nopermissions', '');
 }
 
-// Rehydrate $PAGE from the params the bar baked into its status URL
-// at initial render. Widget functions key off $PAGE->pagetype and
-// $PAGE->course->id (e.g. "show only on course-view-* pages") and
-// would otherwise see the AJAX endpoint's own context — making the
-// course-aware widget return null and wiping the actions on poll.
-$pagetype = optional_param('pagetype', '', PARAM_TEXT);
+// The bar describes the page it was printed on, so take that page's
+// type and course from the URL it was given.
+$pagetype = optional_param('pagetype', '', PARAM_ALPHANUMEXT);
 $courseid = optional_param('courseid', 0, PARAM_INT);
 
+$PAGE->set_url(new moodle_url('/local/nucleuscommon/status.php'));
+$course = null;
 if ($courseid > 0 && $courseid != SITEID) {
-    try {
-        $PAGE->set_course(get_course($courseid));
-    } catch (\Throwable $e) {
-        // Course gone (deleted between render and poll); fall through.
+    $course = $DB->get_record('course', ['id' => $courseid]);
+    if ($course && !can_access_course($course)) {
+        $course = null;
     }
 }
-if ($pagetype !== '' && preg_match('/^[a-z0-9_-]+$/', $pagetype) === 1) {
+if ($course) {
+    $PAGE->set_course($course);
+} else {
+    // The course has gone, or this user can't see it: describe the site only.
+    $PAGE->set_context(context_system::instance());
+}
+if ($pagetype !== '') {
     $PAGE->set_pagetype($pagetype);
 }
 
-$state = local_nucleuscommon_nsb_render_state();
-
-// Hash so the client can short-circuit DOM updates when nothing changed.
-$hash = sha1($state['segments'] . '|' . $state['actions'] . '|' . $state['panel']);
-
-echo json_encode([
-    'hash'     => $hash,
-    'segments' => $state['segments'],
-    'actions'  => $state['actions'],
-    'panel'    => $state['panel'],
-]);
+$renderer = $PAGE->get_renderer('local_nucleuscommon');
+echo json_encode($renderer->statusbar_parts(new statusbar($PAGE)));

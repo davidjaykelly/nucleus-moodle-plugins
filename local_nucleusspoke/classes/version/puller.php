@@ -8,11 +8,11 @@
 //
 // Moodle is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with Moodle. If not, see <https://www.gnu.org/licenses/>.
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
  * Pull orchestration for course versioning (ADR-014 Phase 1).
@@ -24,9 +24,9 @@
  * are local. Synchronous in Phase 1.
  *
  * @package    local_nucleusspoke
- * @copyright  2026 David Kelly <contact@davidkel.ly>
+ * @copyright  2026 David Kelly <contact@dklabs.co.uk>
  * @license    https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @author     David Kelly <contact@davidkel.ly>
+ * @author     David Kelly <contact@dklabs.co.uk>
  */
 
 namespace local_nucleusspoke\version;
@@ -34,6 +34,7 @@ namespace local_nucleusspoke\version;
 use local_nucleuscommon\transport\cp_client;
 use local_nucleuscommon\events\publisher as event_publisher;
 use local_nucleusspoke\client\hub_client;
+use local_nucleusspoke\local\courses;
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -95,7 +96,7 @@ class puller {
                     $family,
                     $version,
                     $userid,
-                    self::resolve_target_category($targetcategoryid),
+                    courses::category($targetcategoryid),
                     $pullnotes
                 );
             } finally {
@@ -122,8 +123,7 @@ class puller {
             self::apply_edit_lock((int) $newcourseid);
             $pullnotes[] = [
                 'kind' => 'edit_locked',
-                'detail' => 'This version is published with the spoke-edit lock; '
-                    . 'editingteacher can\'t modify the local course content.',
+                'detail' => get_string('statusbar_spoke_locked_title', 'local_nucleusspoke'),
             ];
         }
 
@@ -336,18 +336,27 @@ class puller {
             );
         }
         try {
+            // Direct from Cloud Storage via a signed URL; streamed through the
+            // control plane when direct transfer isn't offered.
             $path = '/course-versions/' . rawurlencode($versionrow->guid) . '/snapshot';
-            cp_client::from_config()->get_to_file($path, $mbzpath);
+            $client = cp_client::from_config();
+            try {
+                $download = $client->post_json($path . '/download-url');
+                cp_client::download_url_to_file($download['url'], $mbzpath);
+            } catch (\local_nucleuscommon\transport\cp_client_exception $e) {
+                if ($e->httpstatus !== 404) {
+                    throw $e;
+                }
+                $client->get_to_file($path, $mbzpath);
+            }
             $got = hash_file('sha256', $mbzpath);
             if ($got !== $versionrow->snapshothash) {
                 throw new \moodle_exception(
                     'snapshothashmismatch',
                     'local_nucleusspoke',
                     '',
-                    (object) [
-                        'expected' => $versionrow->snapshothash,
-                        'got' => $got,
-                    ]
+                    null,
+                    'expected ' . $versionrow->snapshothash . ', got ' . $got
                 );
             }
             return $mbzpath;
@@ -398,10 +407,15 @@ class puller {
         int $categoryid,
         array &$pullnotes
     ): int {
-        $shortname = self::uniquify_shortname(
-            $family['slug'] . '-v' . $version['versionnumber']
-        );
-        $fullname = $family['slug'] . ' (v' . $version['versionnumber'] . ')';
+        // Learners see the full name, so it's the hub course's own name
+        // as it was when this version was published (from the backup).
+        // The version goes in the short name, which must be unique.
+        $info = \backup_general_helper::get_backup_information($backupdir);
+        $fullname = trim((string) ($info->original_course_fullname ?? ''));
+        if ($fullname === '') {
+            $fullname = $family['slug'];
+        }
+        $shortname = courses::unique_shortname($family['slug'] . '-v' . $version['versionnumber']);
         $newcourseid = \restore_dbops::create_new_course($fullname, $shortname, $categoryid);
 
         $rc = new \restore_controller(
@@ -464,12 +478,8 @@ class puller {
                     DEBUG_NORMAL
                 );
             }
-            // Override the names baked into the backup MBZ so the
-            // local course identifies the family + version, not the
-            // hub course's at-publish-time fullname (which is often
-            // noisy, e.g. mid-edit titles). create_new_course already
-            // wrote our preferred names; the restore plan will
-            // otherwise stomp them. set_value before execute_plan.
+            // Set the names before the plan runs; the restore would
+            // otherwise take the backup's short name.
             if ($plan->setting_exists('course_fullname')) {
                 $plan->get_setting('course_fullname')->set_value($fullname);
             }
@@ -480,6 +490,9 @@ class puller {
         } finally {
             $rc->destroy();
         }
+        // The restore renames the course when an earlier version already
+        // has this name; put the real names back.
+        courses::set_names((int) $newcourseid, $fullname, $shortname);
         return (int) $newcourseid;
     }
 
@@ -571,62 +584,4 @@ class puller {
             ]);
         }
     }
-
-    /**
-     * Ensure shortname uniqueness. Moodle enforces it at the DB
-     * level; collisions would surface as generic errors. Mirrors
-     * the existing copy_locally pattern.
-     *
-     * @param string $base
-     * @return string
-     */
-    private static function uniquify_shortname(string $base): string {
-        global $DB;
-        $candidate = $base;
-        $i = 2;
-        while ($DB->record_exists('course', ['shortname' => $candidate])) {
-            $candidate = $base . '-' . $i;
-            $i++;
-        }
-        return $candidate;
-    }
-
-    /**
-     * Resolve the category id pulled courses get restored into.
-     *
-     * The previous behaviour hardcoded `1` (Moodle's "Miscellaneous"
-     * default). That breaks on any Moodle whose categories have been
-     * reorganised — Misc may have been renamed, deleted, or its id
-     * may not match. New behaviour:
-     *
-     *   1. If the caller passed an explicit id and it exists, use it.
-     *   2. Otherwise find or create a "Nucleus federation" category
-     *      and use that.
-     *
-     * Putting federated courses in their own category is also nicer
-     * organisationally than mixing them into the spoke's local Misc.
-     *
-     * @param int|null $explicit Caller-supplied target. Validated for
-     *                           existence; falls through if missing.
-     * @return int A guaranteed-valid `course_categories.id`.
-     */
-    private static function resolve_target_category(?int $explicit): int {
-        global $DB;
-        if ($explicit !== null && $DB->record_exists('course_categories', ['id' => $explicit])) {
-            return $explicit;
-        }
-        // Find by idnumber so renames don't break the lookup. The
-        // idnumber is plugin-scoped and unlikely to clash.
-        $existing = $DB->get_record('course_categories', ['idnumber' => 'nucleus_federation']);
-        if ($existing) {
-            return (int) $existing->id;
-        }
-        $created = \core_course_category::create([
-            'name' => 'Nucleus federation',
-            'idnumber' => 'nucleus_federation',
-            'description' => 'Courses pulled from a Nucleus federation hub. Managed automatically — restored versions land here unless an explicit category is set on pull.',
-        ]);
-        return (int) $created->id;
-    }
-
 }

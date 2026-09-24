@@ -1,0 +1,46 @@
+{{!
+    This file is part of Moodle - https://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
+}}
+{{!
+    @template local_nucleushub/summary
+
+    Facts about a course, shown above the promote and publish forms.
+
+    Context variables required for this template:
+    * rows - label, value, lines (text).
+    * note - Optional note under the list.
+
+    Example context (json):
+    {
+        "rows": [
+            {"label": "Identifier", "value": "intro-to-safeguarding", "lines": []},
+            {"label": "Unpublished changes", "value": "3", "lines": [{"text": "Activities added: 2"}, {"text": "Sections updated: 1"}]}
+        ],
+        "note": "Suggested: Minor - Added: 2. Updated: 0. Nothing removed."
+    }
+}}
+<dl class="row local-nucleushub-summary">
+    {{#rows}}
+    <dt class="col-sm-4 col-lg-3">{{label}}</dt>
+    <dd class="col-sm-8 col-lg-9">
+        {{value}}
+        {{#lines}}<span class="d-block small text-muted">{{text}}</span>{{/lines}}
+    </dd>
+    {{/rows}}
+</dl>
+{{#note}}
+<p>{{.}}</p>
+{{/note}}

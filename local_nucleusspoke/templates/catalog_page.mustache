@@ -1,0 +1,94 @@
+{{!
+    This file is part of Moodle - https://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
+}}
+{{!
+    @template local_nucleusspoke/catalog_page
+
+    The Catalogue: every course the hub shares, what this site has and
+    a Pull button for anything newer. Uses the site's theme.
+
+    Context variables required for this template:
+    * intro - How many courses the hub offers.
+    * families - name, slug, haslatest, latest, published, locked, releasenotes, status,
+      pullbutton (rendered single_button HTML), hasnotes, notescount, notes (kind, detail).
+    * versionsurl - The Course versions page.
+
+    Example context (json):
+    {
+        "intro": "Courses available from your hub: 2. Pulling a version creates a new course on this site.",
+        "versionsurl": "https://example.com/local/nucleusspoke/versions.php",
+        "families": [
+            {"name": "Safeguarding 101", "slug": "safeguarding-101", "haslatest": true, "latest": "v1.1.0 (Minor)",
+             "published": "Published 2 days ago", "locked": true, "releasenotes": "New quiz in week 2.",
+             "status": "Update available", "pullbutton": "<button class=\"btn btn-primary\">Pull v1.1.0</button>",
+             "hasnotes": true, "notescount": 1, "notes": [{"kind": "Restore", "detail": "Backup from a newer Moodle."}]}
+        ]
+    }
+}}
+<div class="local-nucleusspoke-catalog">
+    <p>{{intro}}</p>
+    <div class="table-responsive">
+        <table class="generaltable table-sm w-100">
+            <caption class="visually-hidden">{{#str}}catalog_title, local_nucleusspoke{{/str}}</caption>
+            <thead>
+                <tr>
+                    <th scope="col">{{#str}}catalog_col_course, local_nucleusspoke{{/str}}</th>
+                    <th scope="col">{{#str}}catalog_col_latest, local_nucleusspoke{{/str}}</th>
+                    <th scope="col">{{#str}}catalog_col_onthissite, local_nucleusspoke{{/str}}</th>
+                    <th scope="col"><span class="visually-hidden">{{#str}}actions{{/str}}</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#families}}
+                <tr>
+                    <td>
+                        {{name}}
+                        <div class="small text-muted">{{#str}}catalog_identifier, local_nucleusspoke, {{slug}}{{/str}}</div>
+                    </td>
+                    <td>
+                        {{#haslatest}}
+                        {{latest}}
+                        {{#locked}} <span class="badge text-bg-secondary">{{#str}}catalog_locked_chip, local_nucleusspoke{{/str}}</span>{{/locked}}
+                        <div class="small text-muted">{{published}}</div>
+                        {{#locked}}<div class="small">{{#str}}catalog_locked_title, local_nucleusspoke{{/str}}</div>{{/locked}}
+                        {{#releasenotes}}
+                        <details class="small">
+                            <summary>{{#str}}catalog_releasenotes, local_nucleusspoke{{/str}}</summary>
+                            <div class="local-nucleusspoke-notes">{{.}}</div>
+                        </details>
+                        {{/releasenotes}}
+                        {{/haslatest}}
+                        {{^haslatest}}<span class="text-muted">{{#str}}catalog_noversions, local_nucleusspoke{{/str}}</span>{{/haslatest}}
+                    </td>
+                    <td>
+                        {{status}}
+                        {{#hasnotes}}
+                        <details class="small">
+                            <summary>{{#str}}catalog_notes_chip, local_nucleusspoke, {{notescount}}{{/str}}</summary>
+                            <ul class="mb-0 ps-3">
+                                {{#notes}}<li><strong>{{kind}}:</strong> {{detail}}</li>{{/notes}}
+                            </ul>
+                        </details>
+                        {{/hasnotes}}
+                    </td>
+                    <td class="text-end">{{{pullbutton}}}</td>
+                </tr>
+                {{/families}}
+            </tbody>
+        </table>
+    </div>
+    <p><a href="{{versionsurl}}">{{#str}}catalog_toversions, local_nucleusspoke{{/str}}</a></p>
+</div>

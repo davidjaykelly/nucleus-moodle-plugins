@@ -8,11 +8,11 @@
 //
 // Moodle is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with Moodle. If not, see <https://www.gnu.org/licenses/>.
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
  * External function: local_nucleushub_describe_version.
@@ -23,9 +23,9 @@
  * set or Moodle major version doesn't match what the backup needs.
  *
  * @package    local_nucleushub
- * @copyright  2026 David Kelly <contact@davidkel.ly>
+ * @copyright  2026 David Kelly <contact@dklabs.co.uk>
  * @license    https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @author     David Kelly <contact@davidkel.ly>
+ * @author     David Kelly <contact@dklabs.co.uk>
  */
 
 namespace local_nucleushub\external;
@@ -129,7 +129,7 @@ class describe_version extends external_api {
             'versionnumber' => new external_value(PARAM_TEXT, 'Semver-lite version number, e.g. 1.2.0.'),
             'hubcourseid' => new external_value(PARAM_INT, 'mdl_course.id this snapshot was taken from.'),
             'deprecated' => new external_value(PARAM_BOOL, 'Whether the hub has flagged this version deprecated.'),
-            'deprecatedreason' => new external_value(PARAM_RAW, 'Free-text reason; empty when not deprecated.'),
+            'deprecatedreason' => new external_value(PARAM_TEXT, 'Free-text reason; empty when not deprecated.'),
             'timepublished' => new external_value(PARAM_INT, 'Unix time of publish completion.'),
             'hasmanifest' => new external_value(PARAM_BOOL, 'False for legacy rows published pre-ADR-021.'),
             'manifest' => new external_value(PARAM_RAW, 'JSON-encoded dependency manifest, or empty string when hasmanifest=false.'),

@@ -8,11 +8,11 @@
 //
 // Moodle is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with Moodle. If not, see <https://www.gnu.org/licenses/>.
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
  * Idempotent: seed a tenant with a curated, demo-friendly set of
@@ -25,7 +25,7 @@
  *   php local/nucleuscommon/cli/seed_testdata.php --role=spoke
  *
  * Both roles seed the same 5 named users (alice / bob / carol /
- * dan / ellie) so Mode B identity demos have stable identities.
+ * dan / ellie), so demos on the hub and its spokes have the same people.
  * Hubs additionally get the curated catalog (3 categories,
  * ~10 courses, 1 page + 1 forum per course, instructor / student
  * enrolments). Spokes intentionally start without any local
@@ -40,13 +40,13 @@
  * never duplicated.
  *
  * @package    local_nucleuscommon
- * @copyright  2026 David Kelly <contact@davidkel.ly>
+ * @copyright  2026 David Kelly <contact@dklabs.co.uk>
  * @license    https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 define('CLI_SCRIPT', true);
 
-require(__DIR__ . '/../../../../config.php');
+require(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/clilib.php');
 require_once($CFG->dirroot . '/course/lib.php');
 require_once($CFG->dirroot . '/user/lib.php');

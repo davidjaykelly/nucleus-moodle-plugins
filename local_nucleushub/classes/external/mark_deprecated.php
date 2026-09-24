@@ -8,18 +8,18 @@
 //
 // Moodle is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with Moodle. If not, see <https://www.gnu.org/licenses/>.
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
  * External function: local_nucleushub_mark_deprecated
  * (ADR-014 Phase 2).
  *
  * @package    local_nucleushub
- * @copyright  2026 David Kelly <contact@davidkel.ly>
+ * @copyright  2026 David Kelly <contact@dklabs.co.uk>
  * @license    https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -40,7 +40,7 @@ class mark_deprecated extends external_api {
             'versionguid' => new external_value(PARAM_ALPHANUMEXT, 'Version guid to flip.'),
             'deprecated' => new external_value(PARAM_BOOL, 'true to mark, false to clear.'),
             'reason' => new external_value(
-                PARAM_RAW,
+                PARAM_TEXT,
                 'Operator note shown in UIs. Ignored when deprecated=false.',
                 VALUE_DEFAULT,
                 ''
@@ -76,7 +76,7 @@ class mark_deprecated extends external_api {
         return new external_single_structure([
             'versionguid' => new external_value(PARAM_ALPHANUMEXT, 'Version guid.'),
             'deprecated' => new external_value(PARAM_BOOL, 'New deprecation state.'),
-            'deprecatedreason' => new external_value(PARAM_RAW, 'Reason (empty if cleared).'),
+            'deprecatedreason' => new external_value(PARAM_TEXT, 'Reason (empty if cleared).'),
         ]);
     }
 }

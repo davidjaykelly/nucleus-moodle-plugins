@@ -8,11 +8,11 @@
 //
 // Moodle is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with Moodle. If not, see <https://www.gnu.org/licenses/>.
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
  * Web service declarations for local_nucleusspoke.
@@ -21,99 +21,117 @@
  * authenticates against, plus the external functions it can call.
  *
  * @package    local_nucleusspoke
- * @copyright  2026 David Kelly <contact@davidkel.ly>
+ * @copyright  2026 David Kelly <contact@dklabs.co.uk>
  * @license    https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 defined('MOODLE_INTERNAL') || die();
 
 $functions = [
-    'local_nucleusspoke_pull_course' => [
-        'classname'   => 'local_nucleusspoke\external\pull_course',
-        'description' => 'Mode A: pull a hub course MBZ and restore it as a new local course.',
-        'type'        => 'write',
-        'ajax'        => false,
-    ],
     'local_nucleusspoke_configure_hub' => [
         'classname'   => 'local_nucleusspoke\external\configure_hub',
-        'description' => 'Auto-config: store the hub WS URL + token + cluster-internal connect URL.',
+        'description' => 'Store the hub\'s address and token on this spoke.',
         'type'        => 'write',
         'ajax'        => false,
     ],
     'local_nucleusspoke_pull_version' => [
         'classname'   => 'local_nucleusspoke\external\pull_version',
-        'description' => 'ADR-014: download a course-family version snapshot from the control plane and restore it as a new local course.',
+        'description' => 'Pull a published version of a course family as a new course on this spoke.',
         'type'        => 'write',
         'ajax'        => false,
         'capabilities' => 'local/nucleusspoke:pull',
     ],
     'local_nucleusspoke_receive_notification' => [
         'classname'   => 'local_nucleusspoke\external\receive_notification',
-        'description' => 'ADR-014: record a version-available notification fanned out from the control plane.',
+        'description' => 'Record that a new version is available to pull.',
         'type'        => 'write',
         'ajax'        => false,
         'capabilities' => 'local/nucleusspoke:pull',
     ],
     'local_nucleusspoke_list_instances' => [
         'classname'   => 'local_nucleusspoke\external\list_instances',
-        'description' => 'ADR-014: list pulled instances on this spoke (plus pending notification counts per family) for the Nucleus portal.',
+        'description' => 'List the courses this spoke has pulled, with the updates waiting for each course family.',
         'type'        => 'read',
         'ajax'        => false,
         'capabilities' => 'local/nucleusspoke:pull',
     ],
     'local_nucleusspoke_notification_action' => [
         'classname'   => 'local_nucleusspoke\external\notification_action',
-        'description' => 'ADR-014 Phase 2: snooze / dismiss / reactivate a pending version notification.',
+        'description' => 'Snooze, dismiss or bring back an update.',
         'type'        => 'write',
         'ajax'        => false,
         'capabilities' => 'local/nucleusspoke:pull',
     ],
     'local_nucleusspoke_receive_deprecation' => [
         'classname'   => 'local_nucleusspoke\external\receive_deprecation',
-        'description' => 'ADR-014 Phase 2: mirror a hub-side version deprecation flag locally.',
+        'description' => 'Record that the hub has deprecated a version, or restored it.',
         'type'        => 'write',
         'ajax'        => false,
         'capabilities' => 'local/nucleusspoke:pull',
     ],
     'local_nucleusspoke_promote_instance' => [
         'classname'   => 'local_nucleusspoke\external\promote_instance',
-        'description' => 'ADR-014 Phase 2: promote a staging instance to active.',
+        'description' => 'Make a course that was pulled hidden visible to learners.',
         'type'        => 'write',
         'ajax'        => false,
         'capabilities' => 'local/nucleusspoke:pull',
     ],
     'local_nucleusspoke_instance_action' => [
         'classname'   => 'local_nucleusspoke\external\instance_action',
-        'description' => 'ADR-014 Phase 2: close / reopen actions on a pulled instance.',
+        'description' => 'Close a pulled course to enrolment, or reopen it.',
         'type'        => 'write',
         'ajax'        => false,
         'capabilities' => 'local/nucleusspoke:pull',
-    ],
-    'local_nucleusspoke_apply_completion' => [
-        'classname'   => 'local_nucleusspoke\external\apply_completion',
-        'description' => 'Phase B1: apply a completion.v1 envelope routed by the control plane.',
-        'type'        => 'write',
-        'ajax'        => false,
-    ],
-    'local_nucleusspoke_revoke_user' => [
-        'classname'   => 'local_nucleusspoke\external\revoke_user',
-        'description' => 'Phase B1 Step 5: hub-initiated GDPR cascade — unenrol a user from this spoke\'s Mode B placeholder courses.',
-        'type'        => 'write',
-        'ajax'        => false,
     ],
     'local_nucleusspoke_preview_pull' => [
         'classname'   => 'local_nucleusspoke\external\preview_pull',
-        'description' => 'ADR-021 v1.1: run the dependency pre-flight for a hub version without pulling. Returns blockers + Tier C notes for the operator portal.',
+        'description' => 'Check whether this spoke can pull a version, without pulling it.',
         'type'        => 'read',
         'ajax'        => false,
         'capabilities' => 'local/nucleusspoke:pull',
+    ],
+    // Sign in with the hub (ADR-023). The sign-in itself is auth_nucleus;
+    // these fail cleanly when it isn't installed.
+    'local_nucleusspoke_configure_signin' => [
+        'classname'   => 'local_nucleusspoke\external\configure_signin',
+        'description' => 'Set up sign-in with the hub on this spoke and turn it on.',
+        'type'        => 'write',
+        'ajax'        => false,
+        'capabilities' => 'moodle/site:config',
+    ],
+    'local_nucleusspoke_disable_signin' => [
+        'classname'   => 'local_nucleusspoke\external\disable_signin',
+        'description' => 'Turn sign-in with the hub off on this spoke and give hub accounts their own login back.',
+        'type'        => 'write',
+        'ajax'        => false,
+        'capabilities' => 'moodle/site:config',
+    ],
+    'local_nucleusspoke_list_accounts_for_linking' => [
+        'classname'   => 'local_nucleusspoke\external\list_accounts_for_linking',
+        'description' => 'List this spoke\'s accounts for linking to hub accounts.',
+        'type'        => 'read',
+        'ajax'        => false,
+        'capabilities' => 'moodle/site:config',
+    ],
+    'local_nucleusspoke_apply_links' => [
+        'classname'   => 'local_nucleusspoke\external\apply_links',
+        'description' => 'Link existing accounts on this spoke to hub accounts.',
+        'type'        => 'write',
+        'ajax'        => false,
+        'capabilities' => 'moodle/site:config',
+    ],
+    'local_nucleusspoke_signin_status' => [
+        'classname'   => 'local_nucleusspoke\external\signin_status',
+        'description' => 'Report whether sign-in with the hub is on for this spoke.',
+        'type'        => 'read',
+        'ajax'        => false,
+        'capabilities' => 'moodle/site:config',
     ],
 ];
 
 $services = [
     'Nucleus control plane (spoke)' => [
         'functions'       => [
-            'local_nucleusspoke_pull_course',
             'local_nucleusspoke_configure_hub',
             'local_nucleusspoke_pull_version',
             'local_nucleusspoke_receive_notification',
@@ -122,11 +140,13 @@ $services = [
             'local_nucleusspoke_receive_deprecation',
             'local_nucleusspoke_promote_instance',
             'local_nucleusspoke_instance_action',
-            'local_nucleusspoke_apply_completion',
-            'local_nucleusspoke_revoke_user',
             'local_nucleusspoke_preview_pull',
+            'local_nucleusspoke_configure_signin',
+            'local_nucleusspoke_disable_signin',
+            'local_nucleusspoke_list_accounts_for_linking',
+            'local_nucleusspoke_apply_links',
+            'local_nucleusspoke_signin_status',
             'local_nucleuscommon_get_tenant_stats',
-            'local_nucleuscommon_set_federation_mode',
             'local_nucleuscommon_provision_admin_account',
         ],
         'restrictedusers' => 1,

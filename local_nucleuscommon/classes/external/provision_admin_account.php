@@ -8,17 +8,17 @@
 //
 // Moodle is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with Moodle. If not, see <https://www.gnu.org/licenses/>.
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
  * External function: local_nucleuscommon_provision_admin_account.
  *
  * @package    local_nucleuscommon
- * @copyright  2026 David Kelly <contact@davidkel.ly>
+ * @copyright  2026 David Kelly <contact@dklabs.co.uk>
  * @license    https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -166,7 +166,7 @@ class provision_admin_account extends external_api {
         return new external_single_structure([
             'userId'    => new external_value(PARAM_INT, 'mdl_user.id of the provisioned admin.'),
             'created'   => new external_value(PARAM_BOOL, 'True if this call created the user; false if reused existing.'),
-            'resetUrl'  => new external_value(PARAM_RAW, 'One-time password-reset URL — pass to the customer via email.'),
+            'resetUrl'  => new external_value(PARAM_RAW, 'One-time link to set the password - send it to the customer by email.'),
             'expiresAt' => new external_value(PARAM_INT, 'Unix time when the reset URL expires.'),
         ]);
     }

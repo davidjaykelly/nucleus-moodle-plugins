@@ -1,0 +1,188 @@
+{{!
+    This file is part of Moodle - https://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
+}}
+{{!
+    @template local_nucleusspoke/versions_page
+
+    Course versions: updates waiting, snoozed updates, the courses this
+    spoke has pulled, and a short history. Uses the site's theme; every
+    action is a button (rendered single_button HTML in "buttons").
+
+    Context variables required for this template:
+    * catalogueurl
+    * haspending, pending - slug, version, severity, locked, received, releasenotes, buttons.
+    * hassnoozed, snoozed - slug, version, severity, until, buttons.
+    * hasinstances, instances - coursename (formatted HTML), courseurl, slug, version, severity,
+      state, live, deprecated, deprecatedreason, pulled, buttons.
+    * hashistory, history - slug, version, received, resolved, state.
+
+    Example context (json):
+    {
+        "catalogueurl": "https://example.com/local/nucleusspoke/catalog.php",
+        "haspending": true,
+        "pending": [{"slug": "safeguarding-101", "version": "v1.1.0", "severity": "Minor", "locked": false,
+            "received": "24/09/26, 09:10", "releasenotes": "New quiz.", "buttons": "<button class=\"btn btn-primary\">Pull v1.1.0</button>"}],
+        "hassnoozed": false, "snoozed": [],
+        "hasinstances": true,
+        "instances": [{"coursename": "Safeguarding 101", "courseurl": "https://example.com/course/view.php?id=5",
+            "slug": "safeguarding-101", "version": "v1.0.0", "severity": "Major", "state": "Live", "live": true,
+            "deprecated": false, "deprecatedreason": "", "pulled": "20/09/26, 14:02",
+            "buttons": "<button class=\"btn btn-secondary\">Close to enrolment</button>"}],
+        "hashistory": true,
+        "history": [{"slug": "safeguarding-101", "version": "v1.0.0", "received": "19/09/26, 10:00",
+            "resolved": "20/09/26, 14:02", "state": "Pulled"}]
+    }
+}}
+<div class="local-nucleusspoke-versions">
+    <p><a class="btn btn-secondary" href="{{catalogueurl}}">{{#str}}catalog_open, local_nucleusspoke{{/str}}</a></p>
+
+    <h3>{{#str}}pendingupdates, local_nucleusspoke{{/str}}</h3>
+    {{#haspending}}
+    <p class="text-muted">{{#str}}pending_help, local_nucleusspoke{{/str}}</p>
+    <div class="table-responsive">
+        <table class="generaltable table-sm w-100">
+            <caption class="visually-hidden">{{#str}}pendingupdates, local_nucleusspoke{{/str}}</caption>
+            <thead>
+                <tr>
+                    <th scope="col">{{#str}}family, local_nucleusspoke{{/str}}</th>
+                    <th scope="col">{{#str}}version, local_nucleusspoke{{/str}}</th>
+                    <th scope="col">{{#str}}received, local_nucleusspoke{{/str}}</th>
+                    <th scope="col">{{#str}}actions{{/str}}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#pending}}
+                <tr>
+                    <td>{{slug}}</td>
+                    <td>
+                        {{version}} ({{severity}})
+                        {{#locked}}<span class="badge text-bg-secondary">{{#str}}catalog_locked_chip, local_nucleusspoke{{/str}}</span>{{/locked}}
+                        {{#releasenotes}}
+                        <details class="small">
+                            <summary>{{#str}}catalog_releasenotes, local_nucleusspoke{{/str}}</summary>
+                            <div class="local-nucleusspoke-notes">{{.}}</div>
+                        </details>
+                        {{/releasenotes}}
+                    </td>
+                    <td>{{received}}</td>
+                    <td>{{{buttons}}}</td>
+                </tr>
+                {{/pending}}
+            </tbody>
+        </table>
+    </div>
+    {{/haspending}}
+    {{^haspending}}
+    <p>{{#str}}nopending, local_nucleusspoke{{/str}}</p>
+    {{/haspending}}
+
+    {{#hassnoozed}}
+    <h3>{{#str}}snoozedupdates, local_nucleusspoke{{/str}}</h3>
+    <div class="table-responsive">
+        <table class="generaltable table-sm w-100">
+            <caption class="visually-hidden">{{#str}}snoozedupdates, local_nucleusspoke{{/str}}</caption>
+            <thead>
+                <tr>
+                    <th scope="col">{{#str}}family, local_nucleusspoke{{/str}}</th>
+                    <th scope="col">{{#str}}version, local_nucleusspoke{{/str}}</th>
+                    <th scope="col">{{#str}}snoozed_until, local_nucleusspoke{{/str}}</th>
+                    <th scope="col">{{#str}}actions{{/str}}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#snoozed}}
+                <tr>
+                    <td>{{slug}}</td>
+                    <td>{{version}} ({{severity}})</td>
+                    <td>{{until}}</td>
+                    <td>{{{buttons}}}</td>
+                </tr>
+                {{/snoozed}}
+            </tbody>
+        </table>
+    </div>
+    {{/hassnoozed}}
+
+    <h3>{{#str}}pulledinstances, local_nucleusspoke{{/str}}</h3>
+    {{#hasinstances}}
+    <div class="table-responsive">
+        <table class="generaltable table-sm w-100">
+            <caption class="visually-hidden">{{#str}}pulledinstances, local_nucleusspoke{{/str}}</caption>
+            <thead>
+                <tr>
+                    <th scope="col">{{#str}}course{{/str}}</th>
+                    <th scope="col">{{#str}}version, local_nucleusspoke{{/str}}</th>
+                    <th scope="col">{{#str}}state, local_nucleusspoke{{/str}}</th>
+                    <th scope="col">{{#str}}pulled, local_nucleusspoke{{/str}}</th>
+                    <th scope="col">{{#str}}actions{{/str}}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#instances}}
+                <tr>
+                    <td>
+                        <a href="{{courseurl}}">{{{coursename}}}</a>
+                        <div class="small text-muted">{{#str}}catalog_identifier, local_nucleusspoke, {{slug}}{{/str}}</div>
+                    </td>
+                    <td>
+                        {{version}} ({{severity}})
+                        {{#deprecated}}
+                        <span class="badge text-bg-warning">{{#str}}deprecated, local_nucleusspoke{{/str}}</span>
+                        {{#deprecatedreason}}<div class="small">{{.}}</div>{{/deprecatedreason}}
+                        {{/deprecated}}
+                    </td>
+                    <td><span class="badge {{#live}}text-bg-success{{/live}}{{^live}}text-bg-secondary{{/live}}">{{state}}</span></td>
+                    <td>{{pulled}}</td>
+                    <td>{{{buttons}}}</td>
+                </tr>
+                {{/instances}}
+            </tbody>
+        </table>
+    </div>
+    {{/hasinstances}}
+    {{^hasinstances}}
+    <p>{{#str}}noinstances, local_nucleusspoke{{/str}}</p>
+    {{/hasinstances}}
+
+    {{#hashistory}}
+    <h3>{{#str}}history, local_nucleusspoke{{/str}}</h3>
+    <div class="table-responsive">
+        <table class="generaltable table-sm w-100">
+            <caption class="visually-hidden">{{#str}}history, local_nucleusspoke{{/str}}</caption>
+            <thead>
+                <tr>
+                    <th scope="col">{{#str}}family, local_nucleusspoke{{/str}}</th>
+                    <th scope="col">{{#str}}version, local_nucleusspoke{{/str}}</th>
+                    <th scope="col">{{#str}}received, local_nucleusspoke{{/str}}</th>
+                    <th scope="col">{{#str}}resolved, local_nucleusspoke{{/str}}</th>
+                    <th scope="col">{{#str}}state, local_nucleusspoke{{/str}}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#history}}
+                <tr>
+                    <td>{{slug}}</td>
+                    <td>{{version}}</td>
+                    <td>{{received}}</td>
+                    <td>{{resolved}}</td>
+                    <td>{{state}}</td>
+                </tr>
+                {{/history}}
+            </tbody>
+        </table>
+    </div>
+    {{/hashistory}}
+</div>

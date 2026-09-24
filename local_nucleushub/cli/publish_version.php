@@ -8,11 +8,11 @@
 //
 // Moodle is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with Moodle. If not, see <https://www.gnu.org/licenses/>.
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
  * CLI: publish a new version of a hub course (ADR-014 Phase 1).
@@ -25,14 +25,14 @@
  *     php cli/publish_version.php --course=5 --severity=minor --notes="bugfix"
  *
  * @package    local_nucleushub
- * @copyright  2026 David Kelly <contact@davidkel.ly>
+ * @copyright  2026 David Kelly <contact@dklabs.co.uk>
  * @license    https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @author     David Kelly <contact@davidkel.ly>
+ * @author     David Kelly <contact@dklabs.co.uk>
  */
 
 define('CLI_SCRIPT', true);
 
-require(__DIR__ . '/../../../../config.php');
+require(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/clilib.php');
 
 use local_nucleushub\version\publisher;
@@ -97,5 +97,5 @@ cli_writeln(sprintf('  snapshot hash   %s', $result['snapshothash']));
 cli_writeln(sprintf('  size (bytes)    %d', $result['size']));
 cli_writeln(sprintf('  time published  %d', $result['timepublished']));
 cli_writeln('');
-cli_writeln('Event course_version_published.v1 emitted — check control-plane logs for fan-out.');
+cli_writeln('Event course_version_published.v1 emitted - check the control plane logs for the fan-out.');
 exit(0);

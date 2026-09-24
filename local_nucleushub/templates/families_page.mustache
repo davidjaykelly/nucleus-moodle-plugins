@@ -1,0 +1,90 @@
+{{!
+    This file is part of Moodle - https://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
+}}
+{{!
+    @template local_nucleushub/families_page
+
+    Course families: every course this hub shares with its spokes.
+    Uses the site's theme (core table, badge and button classes).
+
+    Context variables required for this template:
+    * hasfamilies - Whether there are any.
+    * families - slug, hascourse, coursename (formatted HTML), courseurl, latest, latestwhen,
+      changes, haschanges, versions, created, publishurl.
+    * reach - A sentence about how many spokes get new versions.
+
+    Example context (json):
+    {
+        "hasfamilies": true,
+        "families": [
+            {"slug": "intro-to-safeguarding", "hascourse": true, "coursename": "Safeguarding 101",
+             "courseurl": "https://example.com/course/view.php?id=2", "latest": "v1.2.0 (Minor)",
+             "latestwhen": "Published 3 days ago", "changes": "Unpublished changes: 2", "haschanges": true,
+             "versions": 4, "created": "Created 20 days ago",
+             "publishurl": "https://example.com/local/nucleushub/publish.php?id=2"}
+        ],
+        "reach": "New versions go to every active spoke. Active spokes: 3."
+    }
+}}
+<div class="local-nucleushub-families">
+    <p>{{#str}}families_toolbar_hint, local_nucleushub{{/str}}</p>
+    {{#hasfamilies}}
+    <div class="table-responsive">
+        <table class="generaltable table-sm w-100">
+            <caption class="visually-hidden">{{#str}}families_title, local_nucleushub{{/str}}</caption>
+            <thead>
+                <tr>
+                    <th scope="col">{{#str}}families_col_family, local_nucleushub{{/str}}</th>
+                    <th scope="col">{{#str}}families_col_latest, local_nucleushub{{/str}}</th>
+                    <th scope="col">{{#str}}families_col_changes, local_nucleushub{{/str}}</th>
+                    <th scope="col">{{#str}}families_col_versions, local_nucleushub{{/str}}</th>
+                    <th scope="col"><span class="visually-hidden">{{#str}}actions{{/str}}</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#families}}
+                <tr>
+                    <td>
+                        {{#hascourse}}<a href="{{courseurl}}">{{{coursename}}}</a>{{/hascourse}}
+                        {{^hascourse}}<span class="text-danger">{{#str}}families_orphan, local_nucleushub{{/str}}</span>{{/hascourse}}
+                        <div class="small text-muted">{{#str}}families_identifier, local_nucleushub, {{slug}}{{/str}} · {{created}}</div>
+                    </td>
+                    <td>
+                        {{#latest}}{{latest}}<div class="small text-muted">{{latestwhen}}</div>{{/latest}}
+                        {{^latest}}<span class="text-muted">{{#str}}familyneverpublished_short, local_nucleushub{{/str}}</span>{{/latest}}
+                    </td>
+                    <td>
+                        {{#haschanges}}<span class="badge text-bg-warning">{{changes}}</span>{{/haschanges}}
+                        {{^haschanges}}{{changes}}{{/haschanges}}
+                    </td>
+                    <td>{{versions}}</td>
+                    <td class="text-end">
+                        {{#hascourse}}<a class="btn btn-primary btn-sm text-nowrap" href="{{publishurl}}">{{#str}}publishversion, local_nucleushub{{/str}}</a>{{/hascourse}}
+                    </td>
+                </tr>
+                {{/families}}
+            </tbody>
+        </table>
+    </div>
+    <p class="text-muted">{{reach}}</p>
+    {{/hasfamilies}}
+    {{^hasfamilies}}
+    <div class="alert alert-info" role="status">
+        <p class="fw-bold mb-1">{{#str}}families_empty_title, local_nucleushub{{/str}}</p>
+        <p class="mb-0">{{#str}}families_empty_hint, local_nucleushub{{/str}}</p>
+    </div>
+    {{/hasfamilies}}
+</div>

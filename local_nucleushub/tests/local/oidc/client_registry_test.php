@@ -200,6 +200,57 @@ final class client_registry_test extends \advanced_testcase {
     }
 
     /**
+     * A spoke row that changes address in place keeps its client on the same
+     * row, with new URIs and the same secret; its codes are dropped.
+     */
+    public function test_repoint_follows_the_row(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $registered = $this->generator()->create_oidc_client(['wwwroot' => 'https://old.example.com']);
+        $user = $this->getDataGenerator()->create_user();
+        $this->generator()->create_code($registered['client'], (int) $user->id, str_repeat('v', 43));
+        $spoke = $registered['spoke'];
+        $spoke->wwwroot = 'https://new.example.com';
+        $DB->set_field('local_nucleushub_spokes', 'wwwroot', $spoke->wwwroot, ['id' => $spoke->id]);
+
+        $this->assertTrue(client_registry::repoint($spoke));
+        $client = client_registry::find_active($registered['clientid']);
+        $this->assertEquals($spoke->id, $client->spokeid);
+        $this->assertSame($registered['client']->id, $client->id);
+        $this->assertSame('https://new.example.com/auth/nucleus/callback.php', $client->redirecturi);
+        $this->assertSame('https://new.example.com/', $client->postlogouturi);
+        $this->assertSame(0, $DB->count_records(tokens::CODE_TABLE));
+        $this->assertNotNull(client_registry::authenticate($registered['clientid'], $registered['secret']));
+
+        // A spoke with no client has nothing to move.
+        $this->assertFalse(client_registry::repoint($this->generator()->create_spoke()));
+    }
+
+    /**
+     * Repointing to an address sign-in can't use is refused, and the client
+     * and its codes stay as they were.
+     */
+    public function test_repoint_refuses_bad_address(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $registered = $this->generator()->create_oidc_client(['wwwroot' => 'https://old.example.com']);
+        $user = $this->getDataGenerator()->create_user();
+        $this->generator()->create_code($registered['client'], (int) $user->id, str_repeat('v', 43));
+        $spoke = $registered['spoke'];
+        $spoke->wwwroot = 'http://new.example.com';
+
+        try {
+            client_registry::repoint($spoke);
+            $this->fail('http while the hub is https must be refused.');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('oidc_badspokeurl', $e->errorcode);
+        }
+        $client = client_registry::find_active($registered['clientid']);
+        $this->assertSame('https://old.example.com/auth/nucleus/callback.php', $client->redirecturi);
+        $this->assertSame(1, $DB->count_records(tokens::CODE_TABLE));
+    }
+
+    /**
      * Unregistering a spoke deletes its client too.
      */
     public function test_unregister_spoke_deletes_client(): void {

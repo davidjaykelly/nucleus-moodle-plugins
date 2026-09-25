@@ -42,6 +42,14 @@ $functions = [
         'type'        => 'write',
         'ajax'        => false,
     ],
+    // Control plane only: it rewrites the spoke's sign-in client too.
+    'local_nucleushub_move_spoke' => [
+        'classname'   => 'local_nucleushub\external\move_spoke',
+        'description' => 'Move a spoke to a new address, with its sign-in client, keeping its hub account and token.',
+        'type'        => 'write',
+        'ajax'        => false,
+        'capabilities' => 'moodle/site:config',
+    ],
     'local_nucleushub_unregister_spoke' => [
         'classname'   => 'local_nucleushub\external\unregister_spoke',
         'description' => 'Remove a spoke from this hub: delete its hub account and token.',
@@ -145,6 +153,7 @@ $services = [
         'functions'       => [
             'local_nucleushub_list_courses',
             'local_nucleushub_register_spoke',
+            'local_nucleushub_move_spoke',
             'local_nucleushub_unregister_spoke',
             'local_nucleushub_publish_version',
             'local_nucleushub_list_families',

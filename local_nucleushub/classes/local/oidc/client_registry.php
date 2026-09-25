@@ -172,10 +172,53 @@ class client_registry {
             self::delete_for_spoke_row($fromspokeid);
             return;
         }
+        self::point_at($client, (int) $tospoke->id, $uris);
+    }
+
+    /**
+     * A spoke row's address changed in place (move_spoke): point its
+     * client at the new address, so sign-in keeps working without
+     * registering again.
+     *
+     * Unlike {@see self::move()}, the client stays on the same spoke row.
+     * The redirect and post-logout URIs are rebuilt from the row's new
+     * wwwroot with the rules of {@see self::uris_for()}, and outstanding
+     * codes are dropped, since they are bound to the old redirect URI.
+     * The client id and secret stay the same, so the spoke's sign-in
+     * settings need no change. Access tokens aren't tied to an address
+     * and are left to expire.
+     *
+     * @param \stdClass $spoke The spoke row, already at its new address (needs id and wwwroot).
+     * @return bool True if the spoke's client was moved, false if the spoke has no client.
+     * @throws \moodle_exception oidc_badspokeurl if sign-in can't use the address. Nothing is changed then.
+     */
+    public static function repoint(\stdClass $spoke): bool {
+        global $DB;
+
+        $client = $DB->get_record(self::TABLE, ['spokeid' => $spoke->id]);
+        if (!$client) {
+            return false;
+        }
+        $uris = self::uris_for((string) $spoke->wwwroot);
+        self::point_at($client, (int) $spoke->id, $uris);
+        return true;
+    }
+
+    /**
+     * Give a client its spoke row and URIs, dropping its outstanding codes.
+     *
+     * @param \stdClass $client Client row.
+     * @param int $spokeid local_nucleushub_spokes.id the client belongs to from now on.
+     * @param array{redirecturi: string, postlogouturi: string} $uris From {@see self::uris_for()}.
+     * @return void
+     */
+    private static function point_at(\stdClass $client, int $spokeid, array $uris): void {
+        global $DB;
+
         $DB->delete_records('local_nucleushub_oidc_code', ['clientid' => $client->clientid]);
         $DB->update_record(self::TABLE, (object) [
             'id' => $client->id,
-            'spokeid' => (int) $tospoke->id,
+            'spokeid' => $spokeid,
             'redirecturi' => $uris['redirecturi'],
             'postlogouturi' => $uris['postlogouturi'],
             'timemodified' => time(),

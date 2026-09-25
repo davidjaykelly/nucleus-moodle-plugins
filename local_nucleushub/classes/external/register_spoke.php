@@ -29,6 +29,7 @@ use core_external\external_function_parameters;
 use core_external\external_single_structure;
 use core_external\external_value;
 use local_nucleushub\local\oidc\client_registry;
+use local_nucleushub\local\spoke_address;
 use local_nucleushub\local\spoke_identity;
 
 /**
@@ -194,7 +195,8 @@ class register_spoke extends external_api {
      * A row that isn't removed and has a different (non-empty) Nucleus
      * spoke ID holds the address. Addresses are compared with scheme and
      * host in lower case and default ports dropped, so a change of case
-     * or an explicit :443 doesn't get round it.
+     * or an explicit :443 doesn't get round it (see
+     * {@see spoke_address::normalise()}).
      *
      * @param string $wwwroot The address being registered.
      * @param string $cpspokeid The Nucleus spoke ID registering it ('' for older callers).
@@ -202,43 +204,12 @@ class register_spoke extends external_api {
      * @throws \moodle_exception spokeurlinuse
      */
     private static function refuse_if_in_use(string $wwwroot, string $cpspokeid): void {
-        global $DB;
-
-        $wanted = self::normalise_wwwroot($wwwroot);
-        $rows = $DB->get_records_select(
-            'local_nucleushub_spokes',
-            "status <> :removed AND cpspokeid IS NOT NULL AND cpspokeid <> ''",
-            ['removed' => 'removed'],
-            '',
-            'id, wwwroot, cpspokeid'
-        );
-        foreach ($rows as $row) {
-            if ((string) $row->cpspokeid !== $cpspokeid && self::normalise_wwwroot((string) $row->wwwroot) === $wanted) {
+        foreach (spoke_address::rows_at($wwwroot) as $row) {
+            $holder = (string) ($row->cpspokeid ?? '');
+            if ((string) $row->status !== 'removed' && $holder !== '' && $holder !== $cpspokeid) {
                 throw new \moodle_exception('spokeurlinuse', 'local_nucleushub', '', s($wwwroot));
             }
         }
-    }
-
-    /**
-     * An address in a form for comparison: scheme and host lower case,
-     * default port dropped, no trailing slash.
-     *
-     * @param string $wwwroot
-     * @return string
-     */
-    private static function normalise_wwwroot(string $wwwroot): string {
-        $wwwroot = rtrim(trim($wwwroot), '/');
-        $parts = parse_url($wwwroot);
-        if (!$parts || empty($parts['host'])) {
-            return strtolower($wwwroot);
-        }
-        $scheme = strtolower((string) ($parts['scheme'] ?? ''));
-        $port = isset($parts['port']) ? (int) $parts['port'] : null;
-        if (($scheme === 'https' && $port === 443) || ($scheme === 'http' && $port === 80)) {
-            $port = null;
-        }
-        return $scheme . '://' . strtolower((string) $parts['host']) . ($port !== null ? ':' . $port : '')
-            . rtrim((string) ($parts['path'] ?? ''), '/');
     }
 
     /**

@@ -365,6 +365,10 @@ final class accounts_test extends \advanced_testcase {
     public function test_privileged_new_account_is_not_created(): void {
         global $CFG, $DB;
 
+        // The refusal rolls back the account's transaction. On Postgres the
+        // test framework otherwise runs the test inside a transaction of its
+        // own, which defers that rollback to the end of the test.
+        $this->preventResetByRollback();
         assign_capability('moodle/role:assign', CAP_ALLOW, $CFG->defaultuserroleid,
             \context_system::instance()->id, true);
         accesslib_clear_all_caches_for_unit_testing();

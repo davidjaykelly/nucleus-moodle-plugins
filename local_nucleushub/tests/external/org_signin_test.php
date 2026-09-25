@@ -250,7 +250,15 @@ final class org_signin_test extends \advanced_testcase {
     public function test_only_the_managed_issuer_is_touched(): void {
         $this->resetAfterTest();
         $this->setAdminUser();
-        $other = new issuer(0, (object) ['name' => 'Other', 'clientid' => 'x', 'clientsecret' => 'y', 'baseurl' => '']);
+        // An image, as every real issuer has: the persistent allows a null
+        // one but the oauth2_issuer column doesn't.
+        $other = new issuer(0, (object) [
+            'name' => 'Other',
+            'image' => 'https://other.example.com/favicon.ico',
+            'clientid' => 'x',
+            'clientsecret' => 'y',
+            'baseurl' => '',
+        ]);
         $other->create();
 
         self::mock_good_discovery();
@@ -459,6 +467,7 @@ final class org_signin_test extends \advanced_testcase {
         self::configure(self::params());
         $other = new issuer(0, (object) [
             'name' => 'Other',
+            'image' => 'https://other.example.com/favicon.ico',
             'clientid' => 'x',
             'clientsecret' => 'y',
             'baseurl' => '',

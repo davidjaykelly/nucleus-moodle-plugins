@@ -105,7 +105,9 @@ class statusbar {
     public static function widget(moodle_page $page): ?array {
         $state = self::course_state($page);
         if (!$state) {
-            return null;
+            // Off course pages, the spoke at a glance; on a course page that
+            // isn't from the hub, or that the user can't pull for, nothing.
+            return str_starts_with((string) $page->pagetype, 'course-view-') ? null : self::site_widget();
         }
         $version = $state->version;
         $deprecated = (int) $version->deprecated === 1;
@@ -263,5 +265,48 @@ class statusbar {
     private static function reason(string $reason): string {
         $reason = trim($reason);
         return $reason !== '' ? $reason : get_string('deprecated_noreason', 'local_nucleusspoke');
+    }
+
+    /**
+     * The spoke at a glance, for pages that aren't a course: how many
+     * courses came from the hub, and how many new versions are waiting.
+     *
+     * @return array|null The widget, or null when the user can't pull.
+     */
+    public static function site_widget(): ?array {
+        global $DB;
+
+        if (!site::can_pull()) {
+            return null;
+        }
+        $fromhub = $DB->count_records('local_nucleusspoke_instance');
+        $waiting = $DB->count_records('local_nucleusspoke_notification', ['state' => 'pending']);
+
+        $segments = [['text' => get_string('statusbar_spoke_site_fromhub', 'local_nucleusspoke', $fromhub), 'attention' => false]];
+        $segments[] = $waiting > 0
+            ? ['text' => get_string('statusbar_spoke_pending', 'local_nucleusspoke', $waiting), 'attention' => true]
+            : ['text' => get_string('statusbar_spoke_site_clean', 'local_nucleusspoke'), 'attention' => false];
+
+        return [
+            'segments' => $segments,
+            'action' => $waiting > 0
+                ? [
+                    'label' => get_string('versions_title', 'local_nucleusspoke'),
+                    'url' => new moodle_url('/local/nucleusspoke/versions.php'),
+                ]
+                : [
+                    'label' => get_string('catalog_title', 'local_nucleusspoke'),
+                    'url' => new moodle_url('/local/nucleusspoke/catalog.php'),
+                ],
+            'rows' => [[
+                'title' => get_string('statusbar_spoke_site_title', 'local_nucleusspoke'),
+                'lines' => [
+                    get_string('statusbar_spoke_site_fromhub', 'local_nucleusspoke', $fromhub),
+                    $waiting > 0
+                        ? get_string('statusbar_spoke_site_waiting', 'local_nucleusspoke', $waiting)
+                        : get_string('statusbar_spoke_site_clean', 'local_nucleusspoke'),
+                ],
+            ]],
+        ];
     }
 }

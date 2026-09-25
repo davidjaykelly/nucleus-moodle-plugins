@@ -64,9 +64,10 @@ class statusbar implements renderable, templatable {
     /**
      * Should the bar appear on this page for the current user?
      *
-     * Only course pages and Nucleus's own pages, only for people who
-     * can publish (hub) or pull (spoke), and never in layouts without
-     * normal page chrome.
+     * On every page with normal page chrome, for the people who run the
+     * Nucleus side of the site: those who can publish (hub) or pull
+     * (spoke). A course page shows that course's state; any other page
+     * shows the site at a glance. Never in layouts without normal chrome.
      *
      * @param moodle_page $page
      * @return bool
@@ -76,12 +77,6 @@ class statusbar implements renderable, templatable {
             return false;
         }
         if (in_array($page->pagelayout, self::EXCLUDED_LAYOUTS, true)) {
-            return false;
-        }
-        $pagetype = (string) $page->pagetype;
-        $iscoursepage = str_starts_with($pagetype, 'course-view-');
-        $isnucleuspage = str_contains($pagetype, 'local-nucleus') || str_contains($pagetype, 'local_nucleus');
-        if (!$iscoursepage && !$isnucleuspage) {
             return false;
         }
         return site::is_operator();

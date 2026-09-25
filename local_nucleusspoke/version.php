@@ -30,7 +30,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'local_nucleusspoke';
-$plugin->version   = 2026092501;
+$plugin->version   = 2026092601;
 $plugin->release   = '0.11.0';
 $plugin->maturity  = MATURITY_ALPHA;
 $plugin->requires  = 2025100600;

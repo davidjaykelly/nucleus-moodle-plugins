@@ -93,7 +93,9 @@ class statusbar {
 
         $state = self::course_state($page);
         if (!$state) {
-            return null;
+            // Off course pages, the hub at a glance; on a course page the
+            // user can't publish from, nothing.
+            return str_starts_with((string) $page->pagetype, 'course-view-') ? null : self::site_widget();
         }
         $courseid = (int) $state->course->id;
 
@@ -268,5 +270,46 @@ class statusbar {
             $lines[] = get_string('changekind_other', 'local_nucleushub', $other);
         }
         return $lines;
+    }
+
+    /**
+     * The hub at a glance, for pages that aren't a course: how many
+     * courses it shares, how many have changes not yet published, and how
+     * many spokes it has.
+     *
+     * @return array|null The widget, or null when the user can't publish.
+     */
+    public static function site_widget(): ?array {
+        global $DB;
+
+        if (!site::can_publish()) {
+            return null;
+        }
+        $shared = $DB->count_records('local_nucleushub_draft');
+        $changed = $DB->count_records_select('local_nucleushub_draft', 'pendingchangecount > 0');
+        $spokes = $DB->count_records('local_nucleushub_spokes', ['status' => 'active']);
+
+        $segments = [['text' => get_string('statusbar_hub_site_shared', 'local_nucleushub', $shared), 'attention' => false]];
+        $segments[] = $changed > 0
+            ? ['text' => get_string('statusbar_hub_site_changed', 'local_nucleushub', $changed), 'attention' => true]
+            : ['text' => get_string('statusbar_hub_clean', 'local_nucleushub'), 'attention' => false];
+
+        return [
+            'segments' => $segments,
+            'action' => [
+                'label' => get_string('families_title', 'local_nucleushub'),
+                'url' => new moodle_url('/local/nucleushub/families.php'),
+            ],
+            'rows' => [[
+                'title' => get_string('statusbar_hub_site_title', 'local_nucleushub'),
+                'lines' => [
+                    get_string('statusbar_hub_site_shared', 'local_nucleushub', $shared),
+                    get_string('statusbar_hub_site_changed', 'local_nucleushub', $changed),
+                    $spokes > 0
+                        ? get_string('statusbar_hub_spokesregistered', 'local_nucleushub', $spokes)
+                        : get_string('statusbar_hub_nospokes', 'local_nucleushub'),
+                ],
+            ]],
+        ];
     }
 }

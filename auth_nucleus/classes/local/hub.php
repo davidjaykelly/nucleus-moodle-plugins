@@ -25,11 +25,14 @@ require_once($CFG->libdir . '/authlib.php');
 /**
  * The hub's sign-in endpoints.
  *
- * The browser goes to authorize.php and end_session.php at the issuer's
- * public URL. The code exchange and the key fetch go server to server
- * over the hub connection this spoke already has (local_nucleusspoke
- * hubwwwroot and hubconnecturl), so they reach the hub even where its
- * public address doesn't resolve from here, and only ever the hub.
+ * The browser goes to authorize.php and end_session.php on the hub's
+ * current address (local_nucleusspoke hubwwwroot). That's the issuer's
+ * host until the hub moves to a new address; its issuer stays pinned to
+ * the original one, so links and tokens don't change. The code exchange
+ * and the key fetch are named under the issuer and go server to server
+ * over the hub connection this spoke already has (hubwwwroot and
+ * hubconnecturl), so they reach the hub even where its public address
+ * doesn't resolve from here, and only ever the hub.
  *
  * @package    auth_nucleus
  * @copyright  2026 David Kelly <contact@dklabs.co.uk>
@@ -40,13 +43,34 @@ class hub {
     public const SCOPE = 'openid profile email';
 
     /**
-     * An endpoint under the issuer.
+     * An endpoint under the issuer, for the server-to-server calls
+     * (token.php and jwks.php). {@see hub_http::internal_url()} sends them
+     * to the hub connection.
      *
      * @param string $file e.g. 'token.php'.
      * @return string
      */
     public static function endpoint(string $file): string {
         return config::issuer() . '/' . $file;
+    }
+
+    /**
+     * An endpoint the browser is sent to (authorize.php, end_session.php),
+     * on the hub's current address: {hubwwwroot}/local/nucleushub/oidc/{file}.
+     *
+     * Without a hub connection, it's under the issuer as before. Sign-in
+     * can't start then ({@see issuer_is_on_hub()}), but signing out of the
+     * hub still goes where it always did.
+     *
+     * @param string $file e.g. 'authorize.php'.
+     * @return string
+     */
+    public static function browser_endpoint(string $file): string {
+        try {
+            return hub_http::from_spoke_config()->endpoint($file);
+        } catch (\moodle_exception $e) {
+            return self::endpoint($file);
+        }
     }
 
     /**
@@ -65,7 +89,8 @@ class hub {
 
     /**
      * Is the configured issuer exactly the issuer of the hub this spoke is
-     * connected to ({hubwwwroot}/local/nucleushub/oidc)?
+     * connected to (its pinned hubissuer, or {hubwwwroot}/local/nucleushub/oidc
+     * when there isn't one)?
      *
      * Sign-in only ever talks to that hub.
      *
@@ -90,7 +115,7 @@ class hub {
      * @return \moodle_url
      */
     public static function authorize_url(\stdClass $flow): \moodle_url {
-        return new \moodle_url(self::endpoint('authorize.php'), [
+        return new \moodle_url(self::browser_endpoint('authorize.php'), [
             'client_id' => config::clientid(),
             'redirect_uri' => config::redirect_uri(),
             'response_type' => 'code',
@@ -114,7 +139,7 @@ class hub {
         if ($idtoken !== null && $idtoken !== '') {
             $params['id_token_hint'] = $idtoken;
         }
-        return new \moodle_url(self::endpoint('end_session.php'), $params);
+        return new \moodle_url(self::browser_endpoint('end_session.php'), $params);
     }
 
     /**

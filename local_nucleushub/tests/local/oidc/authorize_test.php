@@ -368,7 +368,8 @@ final class authorize_test extends \advanced_testcase {
     }
 
     /**
-     * The issuer comes from wwwroot, whatever the request's host.
+     * The issuer (pinned from the wwwroot at install) and the endpoints
+     * never come from the request's host.
      */
     public function test_issuer_is_built_from_wwwroot(): void {
         global $CFG;

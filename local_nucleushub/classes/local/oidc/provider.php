@@ -32,9 +32,14 @@ use local_nucleushub\event\user_signed_in_to_spoke;
  * The endpoint files in `oidc/` are thin: they read the request, call
  * one method here and send what it returns.
  *
- * The issuer is always built from `$CFG->wwwroot`, never from the
- * request, because spokes call the server-to-server endpoints through
- * a cluster-internal address with a Host header.
+ * The issuer is pinned: it's the plugin config `oidc_issuer`, set once
+ * from the address the hub had when it got this version (or was
+ * installed), and it never follows a later wwwroot change. Every spoke's
+ * account links belong to it, so moving the hub to a new address must
+ * not change it. The endpoints, on the other hand, are always on the
+ * current `$CFG->wwwroot`. Neither ever comes from the request, because
+ * spokes call the server-to-server endpoints through a cluster-internal
+ * address with a Host header.
  *
  * `sub` is the user's opaque subject from {@see subjects}, never the
  * user id.
@@ -71,28 +76,73 @@ class provider {
     /** @var string Longest ID token accepted as an end_session hint. */
     private const MAX_HINT_LENGTH = 8192;
 
+    /** @var string Where the endpoint files are, under the wwwroot. */
+    public const PATH = '/local/nucleushub/oidc';
+
+    /** @var string Plugin config holding the pinned issuer. Not an admin setting. */
+    public const ISSUER_CONFIG = 'oidc_issuer';
+
     /**
-     * The issuer: the public, browser-facing address of the provider.
+     * The issuer: what ID tokens, the RFC 9207 `iss` parameter and
+     * discovery name this provider as, and what spokes key their account
+     * links to.
+     *
+     * It's the pinned `oidc_issuer`, which stays the same when the hub
+     * moves to another address. Only if that's missing is it worked out
+     * from the current wwwroot.
      *
      * @return string
      */
     public static function issuer(): string {
-        global $CFG;
-        return $CFG->wwwroot . '/local/nucleushub/oidc';
+        $pinned = rtrim((string) (get_config('local_nucleushub', self::ISSUER_CONFIG) ?: ''), '/');
+        return $pinned !== '' ? $pinned : self::wwwroot_issuer();
     }
 
     /**
-     * The public URL of one of the endpoint files.
+     * The issuer as worked out from the current wwwroot.
+     *
+     * @return string {wwwroot}/local/nucleushub/oidc
+     */
+    public static function wwwroot_issuer(): string {
+        global $CFG;
+        return $CFG->wwwroot . self::PATH;
+    }
+
+    /**
+     * Pin the issuer to the current wwwroot's, unless it's already pinned.
+     *
+     * Called when the plugin is installed and by the upgrade that
+     * introduced pinning, when every hub is still at its original
+     * address. Nothing else writes it.
+     *
+     * @return string The pinned issuer.
+     */
+    public static function pin_issuer(): string {
+        $pinned = rtrim((string) (get_config('local_nucleushub', self::ISSUER_CONFIG) ?: ''), '/');
+        if ($pinned === '') {
+            $pinned = self::wwwroot_issuer();
+            set_config(self::ISSUER_CONFIG, $pinned, 'local_nucleushub');
+        }
+        return $pinned;
+    }
+
+    /**
+     * The public URL of one of the endpoint files, on the hub's current
+     * address. After a move this differs from the issuer's host, which
+     * OpenID Connect allows: discovery says where the endpoints are.
      *
      * @param string $file For example 'token.php'.
      * @return string
      */
     public static function endpoint(string $file): string {
-        return self::issuer() . '/' . $file;
+        global $CFG;
+        return $CFG->wwwroot . self::PATH . '/' . $file;
     }
 
     /**
      * The OpenID Provider configuration (OpenID Connect Discovery 1.0).
+     *
+     * The pinned issuer, with the endpoints on the current address.
      *
      * @return array
      */

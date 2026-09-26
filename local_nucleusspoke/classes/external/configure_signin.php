@@ -40,11 +40,13 @@ defined('MOODLE_INTERNAL') || die();
  * administration > Manage authentication does. Manual accounts stay on.
  * Calling it again replaces the settings, so it also rotates the secret.
  *
- * The issuer must be exactly {hubwwwroot}/local/nucleushub/oidc for the
- * hub this spoke is connected to: sign-in only ever talks to that hub.
- * Configuring a different issuer from the current one first gives hub
- * accounts their own login back and clears every link (links belong to
- * an issuer).
+ * The issuer must be exactly the issuer of the hub this spoke is
+ * connected to: the pinned hubissuer that configure_hub stored, or
+ * {hubwwwroot}/local/nucleushub/oidc when there isn't one. Sign-in only
+ * ever talks to that hub. Configuring a different issuer from the current
+ * one first gives hub accounts their own login back and clears every link
+ * (links belong to an issuer). The same issuer keeps them, so a hub that
+ * has moved to a new address keeps every link.
  */
 class configure_signin extends external_api {
 
@@ -56,7 +58,8 @@ class configure_signin extends external_api {
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters([
             'issuer' => new external_value(PARAM_URL,
-                'The hub\'s issuer: exactly {hubwwwroot}/local/nucleushub/oidc.'),
+                'The hub\'s issuer: exactly the hubissuer given to configure_hub, '
+                    . 'or {hubwwwroot}/local/nucleushub/oidc when none was.'),
             'clientid' => new external_value(PARAM_RAW_TRIMMED, 'This spoke\'s client id on the hub.'),
             'clientsecret' => new external_value(PARAM_RAW, 'This spoke\'s client secret on the hub. Stored encrypted.'),
             'hubname' => new external_value(PARAM_TEXT, 'Name for the "Sign in with {hub name}" button.'),
@@ -113,10 +116,11 @@ class configure_signin extends external_api {
         if ($hubwwwroot === '') {
             throw new \moodle_exception('spokenotconfigured', 'local_nucleusspoke');
         }
-        // Exactly this hub's issuer: sign-in only ever talks to it.
-        $expected = (new \local_nucleuscommon\transport\hub_http($hubwwwroot))->issuer();
-        if ($issuer !== $expected) {
-            throw new \moodle_exception('signin_issuernotonhub', 'local_nucleusspoke', '', $expected);
+        // Exactly this hub's issuer (its pinned one, if Nucleus has given
+        // it): sign-in only ever talks to that hub.
+        $hub = \local_nucleuscommon\transport\hub_http::from_spoke_config();
+        if (!$hub->is_issuer($issuer)) {
+            throw new \moodle_exception('signin_issuernotonhub', 'local_nucleusspoke', '', $hub->issuer());
         }
 
         // Links belong to an issuer. Switching to another one first gives

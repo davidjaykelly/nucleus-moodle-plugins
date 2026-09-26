@@ -15,27 +15,26 @@
 // along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
- * Version metadata for local_nucleushub.
- *
- * Hub-side Nucleus federation plugin: publishes course versions (ADR-014),
- * gives each spoke its own hub account and token (ADR-023), exposes the
- * read-only catalogue functions spokes call, and signs people in to its
- * spokes as an OpenID Connect provider (ADR-023 section 3), optionally
- * through the organisation's own provider (ADR-023 section 5).
+ * Install steps for local_nucleushub.
  *
  * @package    local_nucleushub
  * @copyright  2026 David Kelly <contact@dklabs.co.uk>
  * @license    https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @author     David Kelly <contact@dklabs.co.uk>
  */
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->component = 'local_nucleushub';
-$plugin->version   = 2026092800;
-$plugin->release   = '0.9.0';
-$plugin->maturity  = MATURITY_ALPHA;
-$plugin->requires  = 2025100600;
-$plugin->dependencies = [
-    'local_nucleuscommon' => 2026092404,
-];
+/**
+ * Pin the sign-in issuer to the address the hub is installed at.
+ *
+ * Spokes key their account links to the issuer, so it must stay the same
+ * if the hub later moves to another address (custom domains). Nucleus
+ * installs every hub at its original address, which is also what the
+ * control plane records as the hub's issuer.
+ *
+ * @return bool
+ */
+function xmldb_local_nucleushub_install(): bool {
+    \local_nucleushub\local\oidc\provider::pin_issuer();
+    return true;
+}

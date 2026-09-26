@@ -198,5 +198,19 @@ function xmldb_local_nucleushub_upgrade(int $oldversion): bool {
         upgrade_plugin_savepoint(true, 2026092501, 'local', 'nucleushub');
     }
 
+    if ($oldversion < 2026092800) {
+        // Custom domains: pin the sign-in issuer. Every spoke keys its
+        // account links to it, so it must not follow a later wwwroot
+        // change. Every hub is still at its original address when it
+        // gets this version, so that address is its issuer from now on.
+        // Only ever set when empty: a pinned issuer is never replaced.
+        global $CFG;
+        if ((string) get_config('local_nucleushub', 'oidc_issuer') === '') {
+            set_config('oidc_issuer', $CFG->wwwroot . '/local/nucleushub/oidc', 'local_nucleushub');
+        }
+
+        upgrade_plugin_savepoint(true, 2026092800, 'local', 'nucleushub');
+    }
+
     return true;
 }

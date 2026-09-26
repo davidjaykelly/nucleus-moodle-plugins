@@ -90,4 +90,112 @@ final class hub_http_test extends \advanced_testcase {
             }
         }
     }
+
+    /**
+     * Without a pinned issuer, the Host header comes from the wwwroot when
+     * connecting internally, and isn't sent when connecting to the wwwroot.
+     */
+    public function test_host_header_only_for_internal_connections(): void {
+        $this->assertSame(['Host: hub.example.com'],
+            (new hub_http('https://hub.example.com', 'http://hub.internal:8080'))->host_headers());
+        $this->assertSame(['Host: hub.example.com:8443'],
+            (new hub_http('https://hub.example.com:8443', 'http://hub.internal'))->host_headers());
+        $this->assertSame([], (new hub_http('https://hub.example.com'))->host_headers());
+        $this->assertSame([], (new hub_http('https://hub.example.com', ''))->host_headers());
+    }
+
+    /**
+     * A hub that has moved: the issuer is the pinned one, exactly, and
+     * nothing else (not the new address's issuer) counts.
+     */
+    public function test_pinned_issuer_must_be_exact(): void {
+        $pinned = 'https://acme-hub.n.example.com/local/nucleushub/oidc';
+        $http = new hub_http('https://training.example.org', 'http://hub.internal:8080', 15, $pinned . '/');
+
+        $this->assertSame($pinned, $http->issuer());
+        $this->assertTrue($http->is_issuer($pinned));
+        $this->assertFalse($http->is_issuer($pinned . '/'));
+        $this->assertFalse($http->is_issuer('https://training.example.org/local/nucleushub/oidc'));
+        $this->assertFalse($http->is_issuer('https://acme-hub.n.example.com'));
+        $this->assertFalse($http->is_issuer('https://acme-hub.n.example.com.evil.test/local/nucleushub/oidc'));
+        $this->assertFalse($http->is_issuer(''));
+
+        // No hub address, no issuer, pinned or not.
+        $this->assertFalse((new hub_http('', null, 15, $pinned))->is_issuer($pinned));
+
+        // Empty means the wwwroot's, as before.
+        $this->assertSame('https://training.example.org/local/nucleushub/oidc',
+            (new hub_http('https://training.example.org', null, 15, ''))->issuer());
+    }
+
+    /**
+     * A hub that has moved: token.php and jwks.php named under the pinned
+     * issuer (the old host) go to the connect address with the new
+     * address as Host. Named under the wwwroot they go to the same place,
+     * as before. Anything else is refused.
+     */
+    public function test_pinned_issuer_endpoints_go_to_the_hub_connection(): void {
+        $pinned = 'https://acme-hub.n.example.com/local/nucleushub/oidc';
+        $http = new hub_http('https://training.example.org', 'http://hub.internal:8080', 15, $pinned);
+
+        foreach (['token.php', 'jwks.php'] as $endpoint) {
+            $this->assertSame('http://hub.internal:8080/local/nucleushub/oidc/' . $endpoint,
+                $http->internal_url($pinned . '/' . $endpoint));
+            $this->assertSame('http://hub.internal:8080/local/nucleushub/oidc/' . $endpoint,
+                $http->internal_url('https://training.example.org/local/nucleushub/oidc/' . $endpoint));
+        }
+        $this->assertSame(['Host: training.example.org'], $http->host_headers());
+        $this->assertSame('https://training.example.org/local/nucleushub/oidc/authorize.php',
+            $http->endpoint('authorize.php'));
+
+        foreach ([
+            $pinned . '/userinfo.php',
+            $pinned . '/authorize.php',
+            $pinned . '/token.php?x=1',
+            $pinned . '/../oidc/token.php',
+            $pinned . '/token.php/',
+            $pinned . 'token.php',
+            'https://acme-hub.n.example.com/webservice/rest/server.php',
+            'https://acme-hub.n.example.com/local/other/token.php',
+            'https://acme-hub.n.example.com.evil.test/local/nucleushub/oidc/token.php',
+            'https://training.example.org/local/nucleushub/oidc/userinfo.php',
+            'https://evil.test/local/nucleushub/oidc/token.php',
+        ] as $url) {
+            try {
+                $http->internal_url($url);
+                $this->fail('Allowed ' . $url);
+            } catch (\moodle_exception $e) {
+                $this->assertSame('huberror', $e->errorcode);
+            }
+        }
+
+        // Without a connect address, the request goes to the new address
+        // itself, which needs no Host header.
+        $direct = new hub_http('https://training.example.org', '', 15, $pinned);
+        $this->assertSame('https://training.example.org/local/nucleushub/oidc/token.php',
+            $direct->internal_url($pinned . '/token.php'));
+        $this->assertSame([], $direct->host_headers());
+    }
+
+    /**
+     * The spoke's settings: hubissuer when set, else the hubwwwroot's issuer.
+     */
+    public function test_from_spoke_config_reads_hubissuer(): void {
+        $this->resetAfterTest();
+        $pinned = 'https://acme-hub.n.example.com/local/nucleushub/oidc';
+        set_config('hubwwwroot', 'https://training.example.org', 'local_nucleusspoke');
+        set_config('hubconnecturl', 'http://hub.internal:8080', 'local_nucleusspoke');
+
+        $this->assertSame('https://training.example.org/local/nucleushub/oidc', hub_http::from_spoke_config()->issuer());
+        set_config('hubissuer', '', 'local_nucleusspoke');
+        $this->assertSame('https://training.example.org/local/nucleushub/oidc', hub_http::from_spoke_config()->issuer());
+
+        set_config('hubissuer', $pinned, 'local_nucleusspoke');
+        $http = hub_http::from_spoke_config();
+        $this->assertSame($pinned, $http->issuer());
+        $this->assertTrue($http->is_issuer($pinned));
+        $this->assertSame('http://hub.internal:8080/local/nucleushub/oidc/token.php',
+            $http->internal_url($pinned . '/token.php'));
+        $this->assertSame(['Host: training.example.org'], $http->host_headers());
+    }
 }

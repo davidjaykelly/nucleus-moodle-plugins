@@ -37,9 +37,15 @@ require_once($CFG->libdir . '/filelib.php');
  * internal connect address when one is set, with the Host header the hub
  * expects, and verifying TLS whenever the connection is https.
  *
- * It is deliberately narrow. The issuer must be exactly
- * {hub wwwroot}/local/nucleushub/oidc, the only URLs it will request are
- * that issuer's token.php and jwks.php, and redirects are never followed.
+ * It is deliberately narrow. The issuer must be exactly the hub's: the
+ * pinned issuer Nucleus gave this spoke (local_nucleusspoke hubissuer)
+ * or, when there isn't one, {hub wwwroot}/local/nucleushub/oidc. The only
+ * URLs it will request are token.php and jwks.php, named under that
+ * issuer or under the hub's wwwroot, and always sent to the hub
+ * connection (never to the issuer's host). Redirects are never followed.
+ *
+ * The issuer is pinned so a hub can move to a new address (a custom
+ * domain) without changing it: spokes key their account links to it.
  */
 class hub_http {
 
@@ -58,6 +64,9 @@ class hub_http {
     /** @var int Per-request timeout in seconds. */
     private int $timeout;
 
+    /** @var string The hub's pinned issuer, or '' to work it out from the wwwroot. */
+    private string $pinnedissuer;
+
     /**
      * Constructor.
      *
@@ -66,16 +75,20 @@ class hub_http {
      * @param string|null $connecturl Optional internal address to connect to
      *                        instead, such as a cluster service name.
      * @param int $timeout Per-request timeout in seconds.
+     * @param string|null $issuer The hub's pinned issuer, if Nucleus has
+     *                        given one. Empty means {wwwroot}/local/nucleushub/oidc.
      */
-    public function __construct(string $wwwroot, ?string $connecturl = null, int $timeout = 15) {
+    public function __construct(string $wwwroot, ?string $connecturl = null, int $timeout = 15,
+            ?string $issuer = null) {
         $this->wwwroot = rtrim($wwwroot, '/');
         $this->connecturl = rtrim(($connecturl !== null && $connecturl !== '') ? $connecturl : $wwwroot, '/');
         $this->timeout = $timeout;
+        $this->pinnedissuer = rtrim((string) $issuer, '/');
     }
 
     /**
      * Build one from this spoke's hub connection (local_nucleusspoke
-     * settings hubwwwroot and hubconnecturl).
+     * settings hubwwwroot, hubconnecturl and hubissuer).
      *
      * @param int $timeout Per-request timeout in seconds.
      * @return self
@@ -88,16 +101,18 @@ class hub_http {
                 'local_nucleusspoke/hubwwwroot is not set');
         }
         $connecturl = (string) (get_config('local_nucleusspoke', 'hubconnecturl') ?: '');
-        return new self($wwwroot, $connecturl, $timeout);
+        $issuer = (string) (get_config('local_nucleusspoke', 'hubissuer') ?: '');
+        return new self($wwwroot, $connecturl, $timeout, $issuer);
     }
 
     /**
-     * The hub's issuer: {wwwroot}/local/nucleushub/oidc.
+     * The hub's issuer: the pinned one when Nucleus has given it,
+     * otherwise {wwwroot}/local/nucleushub/oidc.
      *
      * @return string
      */
     public function issuer(): string {
-        return $this->wwwroot . self::OIDC_PATH;
+        return $this->pinnedissuer !== '' ? $this->pinnedissuer : $this->wwwroot . self::OIDC_PATH;
     }
 
     /**
@@ -111,24 +126,42 @@ class hub_http {
     }
 
     /**
+     * The public URL of one of the hub's sign-in endpoints on its current
+     * address: {wwwroot}/local/nucleushub/oidc/{file}.
+     *
+     * This is where a browser is sent. Once the hub has moved it isn't
+     * under the issuer, whose host is the hub's original address.
+     *
+     * @param string $file For example 'authorize.php'.
+     * @return string
+     */
+    public function endpoint(string $file): string {
+        return $this->wwwroot . self::OIDC_PATH . '/' . $file;
+    }
+
+    /**
      * Turn the public URL of an allowed endpoint into the URL to connect to.
      *
-     * @param string $url {issuer}/token.php or {issuer}/jwks.php, exactly.
-     * @return string The same path on the connect address.
+     * The URL may name the endpoint under the issuer (which, once the hub
+     * has moved, is on its original address) or under the hub's wwwroot.
+     * Either way the request goes to the hub connection, never to the
+     * host in the URL, with the Host header taken from the wwwroot.
+     *
+     * @param string $url {issuer}/token.php or {issuer}/jwks.php, or the
+     *                    same under {wwwroot}/local/nucleushub/oidc, exactly.
+     * @return string {connect address}/local/nucleushub/oidc/{endpoint}.
      * @throws \moodle_exception For any other URL.
      */
     public function internal_url(string $url): string {
-        $allowed = false;
-        foreach (self::ENDPOINTS as $endpoint) {
-            if ($this->wwwroot !== '' && $url === $this->issuer() . '/' . $endpoint) {
-                $allowed = true;
+        if ($this->wwwroot !== '') {
+            foreach (self::ENDPOINTS as $endpoint) {
+                if ($url === $this->issuer() . '/' . $endpoint || $url === $this->endpoint($endpoint)) {
+                    return $this->connecturl . self::OIDC_PATH . '/' . $endpoint;
+                }
             }
         }
-        if (!$allowed) {
-            throw new \moodle_exception('huberror', 'local_nucleuscommon', '', 'not a hub sign-in endpoint',
-                'Refused a request to a URL that is not the hub issuer\'s token.php or jwks.php');
-        }
-        return $this->connecturl . substr($url, strlen($this->wwwroot));
+        throw new \moodle_exception('huberror', 'local_nucleuscommon', '', 'not a hub sign-in endpoint',
+            'Refused a request to a URL that is not the hub issuer\'s token.php or jwks.php');
     }
 
     /**
@@ -190,6 +223,22 @@ class hub_http {
     }
 
     /**
+     * The Host header to send: the hub wwwroot's host, when connecting to
+     * an internal address rather than the wwwroot itself. Always the
+     * wwwroot's, never the issuer's, which is the hub's original address
+     * once it has moved.
+     *
+     * @return string[] Nothing, or one 'Host: ...' header.
+     */
+    public function host_headers(): array {
+        $hostheader = hub_client::host_header($this->wwwroot);
+        if ($hostheader !== '' && $this->connecturl !== $this->wwwroot) {
+            return ['Host: ' . $hostheader];
+        }
+        return [];
+    }
+
+    /**
      * Send one request, with the Host header when connecting internally.
      *
      * @param string $method 'GET' or 'POST'.
@@ -202,10 +251,7 @@ class hub_http {
      */
     private function send(string $method, string $url, ?string $body, array $headers, int $retries): array {
         $target = $this->internal_url($url);
-        $hostheader = hub_client::host_header($this->wwwroot);
-        if ($hostheader !== '' && $this->connecturl !== $this->wwwroot) {
-            $headers[] = 'Host: ' . $hostheader;
-        }
+        $headers = array_merge($headers, $this->host_headers());
 
         $attempt = 0;
         do {

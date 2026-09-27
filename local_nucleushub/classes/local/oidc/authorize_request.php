@@ -51,6 +51,13 @@ class authorize_request {
     public readonly string $errordescription;
 
     /**
+     * @var bool True if the request asked for `prompt=none` (OpenID Connect
+     *      Core 3.1.2.1): the hub must not show anything, and answers at once
+     *      with a code or an error.
+     */
+    public readonly bool $promptnone;
+
+    /**
      * Constructor.
      *
      * @param \stdClass $client
@@ -60,6 +67,7 @@ class authorize_request {
      * @param string $codechallenge
      * @param string|null $error
      * @param string $errordescription
+     * @param bool $promptnone
      */
     public function __construct(
         \stdClass $client,
@@ -68,7 +76,8 @@ class authorize_request {
         string $nonce,
         string $codechallenge,
         ?string $error = null,
-        string $errordescription = ''
+        string $errordescription = '',
+        bool $promptnone = false
     ) {
         $this->client = $client;
         $this->redirecturi = $redirecturi;
@@ -77,5 +86,6 @@ class authorize_request {
         $this->codechallenge = $codechallenge;
         $this->error = $error;
         $this->errordescription = $errordescription;
+        $this->promptnone = $promptnone;
     }
 }

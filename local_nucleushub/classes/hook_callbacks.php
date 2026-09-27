@@ -16,7 +16,9 @@
 
 namespace local_nucleushub;
 
+use core\hook\after_config;
 use core\hook\output\before_http_headers;
+use local_nucleushub\local\oidc\provider;
 use local_nucleushub\local\statusbar;
 
 /**
@@ -27,6 +29,32 @@ use local_nucleushub\local\statusbar;
  * @license    https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class hook_callbacks {
+    /**
+     * After config: on the authorisation endpoint, answer a `prompt=none`
+     * request from a session that hasn't finished multi-factor
+     * authentication with login_required, before tool_mfa's own
+     * after_config callback sends the browser to its page (a silent check
+     * must never show one). Registered with a higher priority than
+     * tool_mfa's so it runs first; see provider::prompt_none_before_mfa().
+     *
+     * @param after_config $hook
+     */
+    public static function after_config(after_config $hook): void {
+        global $CFG, $SCRIPT;
+
+        if (during_initial_install() || !empty($CFG->upgraderunning) || CLI_SCRIPT || AJAX_SCRIPT || WS_SERVER) {
+            return;
+        }
+        if ($SCRIPT !== provider::PATH . '/authorize.php') {
+            return;
+        }
+        $url = provider::prompt_none_before_mfa($_GET);
+        if ($url !== null) {
+            @header('Cache-Control: no-store');
+            redirect($url);
+        }
+    }
+
     /**
      * Before headers: on a hub course page with unpublished changes,
      * show a notice (in the theme's own style) with a link to publish.

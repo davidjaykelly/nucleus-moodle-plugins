@@ -122,6 +122,19 @@ class config {
     }
 
     /**
+     * Sign in people who are already signed in to the hub without their
+     * clicking Log in ({@see silent})?
+     *
+     * On unless turned off: a site that hasn't saved the setting yet has it on.
+     *
+     * @return bool
+     */
+    public static function silentsignin(): bool {
+        $value = get_config(self::COMPONENT, 'silentsignin');
+        return $value === false || $value === null || !empty($value);
+    }
+
+    /**
      * Is there enough configuration to sign in with the hub?
      *
      * @return bool
@@ -167,8 +180,10 @@ class config {
         set_config('autoredirect', $autoredirect ? 1 : 0, self::COMPONENT);
         set_config('singlesignout', $singlesignout ? 1 : 0, self::COMPONENT);
         self::lock_profile_fields();
-        // The keys may have changed with the issuer; fetch them afresh.
+        // The keys may have changed with the issuer, and the hub with them;
+        // fetch the keys and the hub's discovery document afresh.
         \cache::make(self::COMPONENT, 'jwks')->purge();
+        \cache::make(self::COMPONENT, 'discovery')->purge();
     }
 
     /**

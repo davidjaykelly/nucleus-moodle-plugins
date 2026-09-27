@@ -30,11 +30,12 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'auth_nucleus';
-$plugin->version   = 2026092800;
+$plugin->version   = 2026092900;
 $plugin->release   = '0.1.1';
 $plugin->maturity  = MATURITY_ALPHA;
 $plugin->requires  = 2025100600;
 $plugin->dependencies = [
     'local_nucleusspoke' => 2026092800,
-    'local_nucleuscommon' => 2026092800,
+    // hub_http may fetch the hub's discovery document (silent sign-in).
+    'local_nucleuscommon' => 2026092900,
 ];

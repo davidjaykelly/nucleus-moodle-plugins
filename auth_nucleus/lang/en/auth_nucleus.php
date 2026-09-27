@@ -25,6 +25,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 $string['auth_nucleusdescription'] = 'People sign in with their account on the federation\'s hub. Nucleus sets this up when the federation turns on sign-in with the hub. Site administrators keep their local accounts.';
+$string['cachedef_discovery'] = 'Whether the hub can sign people in without showing anything';
 $string['cachedef_jwks'] = 'The hub\'s public signing keys';
 $string['defaulthubname'] = 'your hub';
 $string['emailpasswordchangeinfo'] = 'Hi {$a->firstname},
@@ -72,6 +73,8 @@ $string['setting_issuer'] = 'Hub issuer';
 $string['setting_issuer_desc'] = 'The hub\'s sign-in address: exactly the hub URL set in Nucleus > Hub connection, followed by /local/nucleushub/oidc (for example https://hub.example.com/local/nucleushub/oidc). A hub that has moved to a new address keeps the sign-in address it had before, which Nucleus gives this site.';
 $string['setting_locked'] = 'Profile fields';
 $string['setting_locked_desc'] = 'Email address, first name and last name come from the hub. People can\'t change them here; the hub updates them at each sign-in.';
+$string['setting_silentsignin'] = 'Sign people in automatically';
+$string['setting_silentsignin_desc'] = 'When someone who is already signed in to the hub opens a page here, sign them in without their having to click Log in. The site checks with the hub once per visit. After someone signs out here, it doesn\'t sign them in again until they sign in themselves.';
 $string['setting_singlesignout'] = 'Sign out of the hub too';
 $string['setting_singlesignout_desc'] = 'When someone with a hub account signs out of this site, sign them out of the hub as well.';
 $string['settings_intro'] = 'Nucleus sets these when the federation turns on sign-in with the hub. Only change them if DK Labs asks you to.';

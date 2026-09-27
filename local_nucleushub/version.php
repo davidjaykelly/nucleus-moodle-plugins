@@ -32,7 +32,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'local_nucleushub';
-$plugin->version   = 2026092800;
+$plugin->version   = 2026092900;
 $plugin->release   = '0.9.0';
 $plugin->maturity  = MATURITY_ALPHA;
 $plugin->requires  = 2025100600;

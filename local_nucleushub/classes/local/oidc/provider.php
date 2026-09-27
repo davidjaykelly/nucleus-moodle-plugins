@@ -29,6 +29,11 @@ use local_nucleushub\event\user_signed_in_to_spoke;
  * no consent screen (spokes are first-party clients registered by
  * Nucleus), no request objects.
  *
+ * `prompt=none` (OpenID Connect Core 3.1.2.1) is supported, so a spoke can
+ * check without showing anything whether someone is already signed in
+ * here ("silent sign-in"): see {@see authorize_prompt_none()}. The other
+ * prompt values are ignored.
+ *
  * The endpoint files in `oidc/` are thin: they read the request, call
  * one method here and send what it returns.
  *
@@ -170,6 +175,8 @@ class provider {
             'request_parameter_supported' => false,
             'request_uri_parameter_supported' => false,
             'authorization_response_iss_parameter_supported' => true,
+            // Spokes only start silent sign-in when this lists none.
+            'prompt_values_supported' => ['none'],
         ];
     }
 
@@ -229,6 +236,11 @@ class provider {
      * and the endpoint shows an error page. Any other problem is
      * returned in the request's `error`, to be sent back to the client.
      *
+     * `prompt` is a space-separated list (OpenID Connect Core 3.1.2.1).
+     * Only `none` is acted on, and only once everything else has been
+     * checked; `none` with any other value is invalid_request. Other
+     * values are ignored, as they always have been.
+     *
      * @param array $params The query parameters.
      * @return authorize_request
      * @throws \moodle_exception If the client is unknown or the redirect URI isn't its registered one.
@@ -249,6 +261,10 @@ class provider {
         $responsetype = self::param($params, 'response_type');
         $responsemode = self::param($params, 'response_mode');
         $scopes = preg_split('/ +/', trim(self::param($params, 'scope') ?? ''), -1, PREG_SPLIT_NO_EMPTY);
+        $prompts = array_values(array_unique(
+            preg_split('/ +/', trim(self::param($params, 'prompt') ?? ''), -1, PREG_SPLIT_NO_EMPTY)
+        ));
+        $promptnone = in_array('none', $prompts, true);
 
         $error = null;
         $description = '';
@@ -272,6 +288,8 @@ class provider {
             [$error, $description] = ['invalid_request', 'code_challenge_method must be S256.'];
         } else if (!preg_match(self::CHALLENGE_PATTERN, $challenge)) {
             [$error, $description] = ['invalid_request', 'code_challenge is required.'];
+        } else if ($promptnone && count($prompts) > 1) {
+            [$error, $description] = ['invalid_request', 'prompt=none can\'t be combined with other values.'];
         }
 
         return new authorize_request(
@@ -281,7 +299,8 @@ class provider {
             $error === null ? $nonce : '',
             $error === null ? $challenge : '',
             $error,
-            $description
+            $description,
+            $promptnone
         );
     }
 
@@ -355,6 +374,152 @@ class provider {
         }
         $params['iss'] = self::issuer();
         return new \moodle_url($request->redirecturi, $params);
+    }
+
+    /**
+     * Finish a good `prompt=none` request without showing anything
+     * (OpenID Connect Core 3.1.2.1).
+     *
+     * authorize.php calls this instead of require_login(), which would send
+     * someone who isn't signed in to the hub's login page. The browser
+     * always goes straight back to the client: with a code, issued exactly
+     * as {@see complete_authorize()} issues it, or with an error wherever
+     * the normal flow would have shown a page or asked something:
+     *
+     * - not signed in to the hub, or only as the guest: login_required;
+     * - a "Log in as" session, or an account that may not sign in to
+     *   spokes: access_denied, as in the normal flow;
+     * - multi-factor authentication not finished: login_required;
+     * - a forced password change, an incomplete profile or a site policy
+     *   still to accept: interaction_required;
+     * - the hub in maintenance mode: temporarily_unavailable;
+     * - another plugin that acts after login (its pages can't be ruled
+     *   out): interaction_required.
+     *
+     * These mirror require_login()'s checks for a signed-in person. There
+     * is no consent screen (spokes are first-party clients), so
+     * consent_required never arises.
+     *
+     * @param authorize_request $request A `prompt=none` request with no error.
+     * @param \stdClass $sessionuser The session's user ($USER).
+     * @param bool $loggedinas True if this is a "Log in as" session.
+     * @return \moodle_url The redirect URI with `code`, `state` and `iss`, or with an error, `state` and `iss`.
+     */
+    public static function authorize_prompt_none(
+        authorize_request $request,
+        \stdClass $sessionuser,
+        bool $loggedinas
+    ): \moodle_url {
+        global $CFG;
+
+        if ($request->error !== null || !$request->promptnone) {
+            throw new \coding_exception('authorize_prompt_none() needs a prompt=none request with no error.');
+        }
+        if (empty($sessionuser->id) || isguestuser($sessionuser)) {
+            return self::authorize_error_url($request, 'login_required', 'The user isn\'t signed in to the hub.');
+        }
+
+        // Checked against a fresh copy of the account, not the session.
+        $user = self::load_user((int) $sessionuser->id) ?? (object) ['id' => 0];
+        if ($loggedinas || !self::user_can_sign_in($user)) {
+            return self::authorize_error_url($request, 'access_denied', 'This account can\'t sign in to other sites.');
+        }
+        if (self::mfa_pending()) {
+            return self::authorize_error_url($request, 'login_required', 'The user hasn\'t finished signing in to the hub.');
+        }
+        if (get_user_preferences('auth_forcepasswordchange', false, $user)) {
+            return self::authorize_error_url($request, 'interaction_required', 'The user must change their password on the hub.');
+        }
+        if (user_not_fully_set_up($user, true)) {
+            return self::authorize_error_url($request, 'interaction_required', 'The user must complete their profile on the hub.');
+        }
+        // require_login() spares site admins these two.
+        if (!is_siteadmin($user)) {
+            if (empty($user->policyagreed) && (new \core_privacy\local\sitepolicy\manager())->get_redirect_url(false)) {
+                return self::authorize_error_url($request, 'interaction_required', 'The user must accept the hub\'s site policy.');
+            }
+            if (
+                !empty($CFG->maintenance_enabled)
+                && !has_capability('moodle/site:maintenanceaccess', \context_system::instance(), $user)
+            ) {
+                return self::authorize_error_url($request, 'temporarily_unavailable', 'The hub is in maintenance mode.');
+            }
+        }
+        if (self::other_after_login_callbacks()) {
+            return self::authorize_error_url($request, 'interaction_required', 'The hub may need the user to do something first.');
+        }
+
+        return self::complete_authorize($request, $user, (int) ($sessionuser->currentlogin ?? 0), $loggedinas);
+    }
+
+    /**
+     * Answer a `prompt=none` request from a session that hasn't finished
+     * multi-factor authentication, before tool_mfa can show its page.
+     *
+     * tool_mfa checks every page as soon as config.php has loaded (its
+     * after_config hook callback), before authorize.php's own code runs,
+     * and sends such a session to its page. The hub's after_config
+     * callback, which runs first, calls this for authorize.php so that a
+     * silent check gets login_required instead. It only ever refuses: it
+     * never lets anyone past tool_mfa.
+     *
+     * @param array $params The query parameters.
+     * @return \moodle_url|null The error redirect, or null to leave the
+     *      request to tool_mfa and authorize.php (not prompt=none, a wrong
+     *      client or redirect URI, nobody signed in, a "Log in as" session,
+     *      or nothing pending).
+     */
+    public static function prompt_none_before_mfa(array $params): ?\moodle_url {
+        if (!isloggedin() || isguestuser() || \core\session\manager::is_loggedinas() || !self::mfa_pending()) {
+            return null;
+        }
+        try {
+            $request = self::parse_authorize_request($params);
+        } catch (\moodle_exception $e) {
+            // Nothing may be sent to an unchecked redirect URI.
+            return null;
+        }
+        if (!$request->promptnone) {
+            return null;
+        }
+        if ($request->error !== null) {
+            return self::authorize_error_url($request);
+        }
+        return self::authorize_error_url($request, 'login_required', 'The user hasn\'t finished signing in to the hub.');
+    }
+
+    /**
+     * Has the session user still to pass multi-factor authentication
+     * (tool_mfa), which require_login() would send them to?
+     *
+     * @return bool
+     */
+    private static function mfa_pending(): bool {
+        global $SESSION;
+
+        if (!empty($SESSION->tool_mfa_authenticated) || !class_exists(\tool_mfa\manager::class)) {
+            return false;
+        }
+        // False when MFA is off, or has nothing to ask this user.
+        return \tool_mfa\manager::is_ready();
+    }
+
+    /**
+     * Does any plugin other than tool_mfa (checked above) hook into the end
+     * of require_login()? Such a callback may show a page, so a
+     * `prompt=none` request can't be answered with a code.
+     *
+     * @return bool
+     */
+    private static function other_after_login_callbacks(): bool {
+        $callbacks = get_plugins_with_function('after_require_login', 'lib.php');
+        unset($callbacks['tool']['mfa']);
+        foreach ($callbacks as $plugins) {
+            if (!empty($plugins)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // Token endpoint.

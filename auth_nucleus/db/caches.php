@@ -35,4 +35,15 @@ $definitions = [
         'staticacceleration' => true,
         'staticaccelerationsize' => 2,
     ],
+    // Whether the hub supports prompt=none, so silent sign-in may start,
+    // keyed by issuer and hub address. Each entry records when it was
+    // fetched; \auth_nucleus\local\hub::supports_prompt_none() asks again
+    // after ten minutes.
+    'discovery' => [
+        'mode' => cache_store::MODE_APPLICATION,
+        'simplekeys' => true,
+        'simpledata' => true,
+        'staticacceleration' => true,
+        'staticaccelerationsize' => 2,
+    ],
 ];

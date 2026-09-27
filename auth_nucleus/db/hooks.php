@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
- * Install steps for auth_nucleus.
+ * Hook callbacks for auth_nucleus.
  *
  * @package    auth_nucleus
  * @copyright  2026 David Kelly <contact@dklabs.co.uk>
@@ -24,24 +24,10 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-/**
- * Set the defaults and lock the profile fields the hub owns.
- *
- * On hosted sites the settings page is read-only, so Moodle has no
- * admin setting to take these defaults from.
- *
- * @return bool
- */
-function xmldb_auth_nucleus_install(): bool {
-    if (get_config('auth_nucleus', 'autoredirect') === false) {
-        set_config('autoredirect', 1, 'auth_nucleus');
-    }
-    if (get_config('auth_nucleus', 'singlesignout') === false) {
-        set_config('singlesignout', 1, 'auth_nucleus');
-    }
-    if (get_config('auth_nucleus', 'silentsignin') === false) {
-        set_config('silentsignin', 1, 'auth_nucleus');
-    }
-    \auth_nucleus\local\config::lock_profile_fields();
-    return true;
-}
+$callbacks = [
+    [
+        // Silent sign-in (prompt=none) on page views by people not signed in.
+        'hook' => \core\hook\output\before_http_headers::class,
+        'callback' => [\auth_nucleus\hook_callbacks::class, 'before_http_headers'],
+    ],
+];

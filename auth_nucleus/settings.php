@@ -63,6 +63,8 @@ if ($ADMIN->fulltree) {
             new lang_string('setting_autoredirect', 'auth_nucleus'), $yesno(config::autoredirect())));
         $settings->add(new admin_setting_description('auth_nucleus/singlesignout_view',
             new lang_string('setting_singlesignout', 'auth_nucleus'), $yesno(config::singlesignout())));
+        $settings->add(new admin_setting_description('auth_nucleus/silentsignin_view',
+            new lang_string('setting_silentsignin', 'auth_nucleus'), $yesno(config::silentsignin())));
     } else {
         $settings->add(new admin_setting_configtext('auth_nucleus/issuer',
             new lang_string('setting_issuer', 'auth_nucleus'),
@@ -83,6 +85,9 @@ if ($ADMIN->fulltree) {
         $settings->add(new admin_setting_configcheckbox('auth_nucleus/singlesignout',
             new lang_string('setting_singlesignout', 'auth_nucleus'),
             new lang_string('setting_singlesignout_desc', 'auth_nucleus'), 1));
+        $settings->add(new admin_setting_configcheckbox('auth_nucleus/silentsignin',
+            new lang_string('setting_silentsignin', 'auth_nucleus'),
+            new lang_string('setting_silentsignin_desc', 'auth_nucleus'), 1));
     }
 
     $settings->add(new admin_setting_heading('auth_nucleus/locked', new lang_string('setting_locked', 'auth_nucleus'),

@@ -66,17 +66,22 @@ final class hub_http_test extends \advanced_testcase {
     }
 
     /**
-     * Only token.php and jwks.php are called, on the connect address.
+     * Only token.php, jwks.php and discovery.php are called, on the connect address.
      */
-    public function test_only_the_two_endpoints_are_called(): void {
+    public function test_only_the_three_endpoints_are_called(): void {
         $http = new hub_http('https://hub.example.com', 'http://hub.internal:8080');
         $this->assertSame('http://hub.internal:8080/local/nucleushub/oidc/token.php',
             $http->internal_url('https://hub.example.com/local/nucleushub/oidc/token.php'));
         $this->assertSame('http://hub.internal:8080/local/nucleushub/oidc/jwks.php',
             $http->internal_url('https://hub.example.com/local/nucleushub/oidc/jwks.php'));
+        $this->assertSame('http://hub.internal:8080/local/nucleushub/oidc/discovery.php',
+            $http->internal_url('https://hub.example.com/local/nucleushub/oidc/discovery.php'));
 
         foreach ([
             'https://hub.example.com/local/nucleushub/oidc/userinfo.php',
+            'https://hub.example.com/local/nucleushub/oidc/authorize.php',
+            'https://hub.example.com/local/nucleushub/oidc/discovery.php?x=1',
+            'https://hub.example.com/.well-known/openid-configuration',
             'https://hub.example.com/webservice/rest/server.php',
             'https://hub.example.com/local/nucleushub/oidc/token.php?x=1',
             'https://hub.example.com/local/nucleushub/oidc/../oidc/token.php',
@@ -138,7 +143,7 @@ final class hub_http_test extends \advanced_testcase {
         $pinned = 'https://acme-hub.n.example.com/local/nucleushub/oidc';
         $http = new hub_http('https://training.example.org', 'http://hub.internal:8080', 15, $pinned);
 
-        foreach (['token.php', 'jwks.php'] as $endpoint) {
+        foreach (['token.php', 'jwks.php', 'discovery.php'] as $endpoint) {
             $this->assertSame('http://hub.internal:8080/local/nucleushub/oidc/' . $endpoint,
                 $http->internal_url($pinned . '/' . $endpoint));
             $this->assertSame('http://hub.internal:8080/local/nucleushub/oidc/' . $endpoint,

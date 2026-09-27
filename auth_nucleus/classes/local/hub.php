@@ -32,7 +32,8 @@ require_once($CFG->libdir . '/authlib.php');
  * and the key fetch are named under the issuer and go server to server
  * over the hub connection this spoke already has (hubwwwroot and
  * hubconnecturl), so they reach the hub even where its public address
- * doesn't resolve from here, and only ever the hub.
+ * doesn't resolve from here, and only ever the hub. So does the discovery
+ * fetch that tells silent sign-in whether the hub supports prompt=none.
  *
  * @package    auth_nucleus
  * @copyright  2026 David Kelly <contact@dklabs.co.uk>
@@ -42,10 +43,16 @@ class hub {
     /** @var string Scopes asked for. */
     public const SCOPE = 'openid profile email';
 
+    /** @var int Seconds the answer to "does the hub support prompt=none?" is kept, either way. */
+    public const DISCOVERY_TTL = 600;
+
+    /** @var int Timeout for fetching the hub's discovery document, in seconds. It happens during a page view. */
+    public const DISCOVERY_TIMEOUT = 3;
+
     /**
      * An endpoint under the issuer, for the server-to-server calls
-     * (token.php and jwks.php). {@see hub_http::internal_url()} sends them
-     * to the hub connection.
+     * (token.php, jwks.php and discovery.php).
+     * {@see hub_http::internal_url()} sends them to the hub connection.
      *
      * @param string $file e.g. 'token.php'.
      * @return string
@@ -112,10 +119,15 @@ class hub {
      * Where to send the browser to sign in.
      *
      * @param \stdClass $flow From {@see flow::start()}.
+     * @param string|null $prompt The OpenID Connect `prompt` to send, if any.
+     *                            A silent flow always sends `none`.
      * @return \moodle_url
      */
-    public static function authorize_url(\stdClass $flow): \moodle_url {
-        return new \moodle_url(self::browser_endpoint('authorize.php'), [
+    public static function authorize_url(\stdClass $flow, ?string $prompt = null): \moodle_url {
+        if (!empty($flow->silent)) {
+            $prompt = 'none';
+        }
+        $params = [
             'client_id' => config::clientid(),
             'redirect_uri' => config::redirect_uri(),
             'response_type' => 'code',
@@ -124,7 +136,58 @@ class hub {
             'nonce' => $flow->nonce,
             'code_challenge' => $flow->challenge,
             'code_challenge_method' => 'S256',
-        ]);
+        ];
+        if ($prompt !== null && $prompt !== '') {
+            $params['prompt'] = $prompt;
+        }
+        return new \moodle_url(self::browser_endpoint('authorize.php'), $params);
+    }
+
+    /**
+     * Does the hub answer `prompt=none` without showing anything?
+     *
+     * Silent sign-in only starts if it does. A hub from before 2026092900
+     * ignores `prompt` and would show its login page to someone who only
+     * opened a page here, so this reads the hub's discovery document
+     * (server to server, over the hub connection) and looks for `none` in
+     * `prompt_values_supported`. The document must name this spoke's
+     * issuer.
+     *
+     * The answer is cached for {@see DISCOVERY_TTL} seconds either way, so
+     * a hub that has just been upgraded is noticed within that time and a
+     * hub that can't be reached costs one slow page view in that time, not
+     * every one. Saving the sign-in settings clears it.
+     *
+     * @return bool False if the hub doesn't, or can't be asked.
+     */
+    public static function supports_prompt_none(): bool {
+        $issuer = config::issuer();
+        if ($issuer === '') {
+            return false;
+        }
+        $cache = \cache::make(config::COMPONENT, 'discovery');
+        $key = sha1($issuer . '|' . (string) (get_config('local_nucleusspoke', 'hubwwwroot') ?: ''));
+        $entry = $cache->get($key);
+        if (
+            is_array($entry)
+            && isset($entry['fetched'], $entry['promptnone'])
+            && time() - (int) $entry['fetched'] < self::DISCOVERY_TTL
+        ) {
+            return (bool) $entry['promptnone'];
+        }
+
+        $promptnone = false;
+        try {
+            $document = hub_http::from_spoke_config(self::DISCOVERY_TIMEOUT)->get_json(self::endpoint('discovery.php'));
+            $values = $document['prompt_values_supported'] ?? null;
+            $promptnone = ($document['issuer'] ?? null) === $issuer
+                && is_array($values)
+                && in_array('none', $values, true);
+        } catch (\moodle_exception $e) {
+            $promptnone = false;
+        }
+        $cache->set($key, ['fetched' => time(), 'promptnone' => $promptnone]);
+        return $promptnone;
     }
 
     /**

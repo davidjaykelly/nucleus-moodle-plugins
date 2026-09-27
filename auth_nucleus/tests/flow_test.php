@@ -137,5 +137,40 @@ final class flow_test extends \advanced_testcase {
         $this->assertSame($flow->challenge, $url->get_param('code_challenge'));
         $this->assertSame('S256', $url->get_param('code_challenge_method'));
         $this->assertStringNotContainsString($flow->verifier, $url->out(false));
+        $this->assertNull($url->get_param('prompt'));
+    }
+
+    /**
+     * A silent flow is marked as such, its state has the silent prefix
+     * (and still suits callback.php), and it always asks for prompt=none.
+     * Other flows don't.
+     */
+    public function test_silent_flow(): void {
+        global $CFG;
+
+        set_config('issuer', 'https://hub.example.com/local/nucleushub/oidc', 'auth_nucleus');
+        set_config('clientid', 'client-1', 'auth_nucleus');
+
+        $flow = flow::start('/course/view.php?id=2', true);
+        $this->assertTrue($flow->silent);
+        $this->assertSame($CFG->wwwroot . '/course/view.php?id=2', $flow->wantsurl);
+        $this->assertStringStartsWith(flow::SILENT_STATE_PREFIX, $flow->state);
+        $this->assertTrue(flow::is_silent_state($flow->state));
+        $this->assertMatchesRegularExpression(flow::STATE_PATTERN, $flow->state);
+        $this->assertSame('none', hub::authorize_url($flow)->get_param('prompt'));
+        $this->assertSame('none', hub::authorize_url($flow, 'login')->get_param('prompt'));
+        $this->assertEquals($flow, flow::consume($flow->state));
+
+        $normal = flow::start('');
+        $this->assertFalse($normal->silent);
+        $this->assertFalse(flow::is_silent_state($normal->state));
+        $this->assertMatchesRegularExpression(flow::STATE_PATTERN, $normal->state);
+        $this->assertNull(hub::authorize_url($normal)->get_param('prompt'));
+        $this->assertSame('login', hub::authorize_url($normal, 'login')->get_param('prompt'));
+
+        foreach (['silent.', 'silent.short', 'Silent.' . str_repeat('a', 43), 'x.' . str_repeat('a', 43),
+                str_repeat('a', 43) . '.silent', 'silent.silent.' . str_repeat('a', 43)] as $bad) {
+            $this->assertDoesNotMatchRegularExpression(flow::STATE_PATTERN, $bad);
+        }
     }
 }

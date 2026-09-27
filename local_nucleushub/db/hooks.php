@@ -29,4 +29,11 @@ $callbacks = [
         'hook' => \core\hook\output\before_http_headers::class,
         'callback' => [\local_nucleushub\hook_callbacks::class, 'before_http_headers'],
     ],
+    [
+        // Silent sign-in: must run before tool_mfa's after_config callback
+        // (default priority 100), which would show its page.
+        'hook' => \core\hook\after_config::class,
+        'callback' => [\local_nucleushub\hook_callbacks::class, 'after_config'],
+        'priority' => 1000,
+    ],
 ];

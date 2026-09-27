@@ -32,17 +32,20 @@ require_once($CFG->libdir . '/filelib.php');
  * Form POSTs and JSON GETs to the hub's sign-in provider (ADR-023).
  *
  * {@see hub_client} speaks Moodle's web service protocol. The hub's
- * OpenID Connect token and key endpoints are ordinary pages instead, so
- * this class calls them the same way hub_client calls the hub: over the
- * internal connect address when one is set, with the Host header the hub
- * expects, and verifying TLS whenever the connection is https.
+ * OpenID Connect token, key and discovery endpoints are ordinary pages
+ * instead, so this class calls them the same way hub_client calls the
+ * hub: over the internal connect address when one is set, with the Host
+ * header the hub expects, and verifying TLS whenever the connection is
+ * https.
  *
  * It is deliberately narrow. The issuer must be exactly the hub's: the
  * pinned issuer Nucleus gave this spoke (local_nucleusspoke hubissuer)
  * or, when there isn't one, {hub wwwroot}/local/nucleushub/oidc. The only
- * URLs it will request are token.php and jwks.php, named under that
- * issuer or under the hub's wwwroot, and always sent to the hub
- * connection (never to the issuer's host). Redirects are never followed.
+ * URLs it will request are token.php, jwks.php and discovery.php (which
+ * auth_nucleus reads to see whether the hub supports silent sign-in),
+ * named under that issuer or under the hub's wwwroot, and always sent to
+ * the hub connection (never to the issuer's host). Redirects are never
+ * followed.
  *
  * The issuer is pinned so a hub can move to a new address (a custom
  * domain) without changing it: spokes key their account links to it.
@@ -53,7 +56,7 @@ class hub_http {
     public const OIDC_PATH = '/local/nucleushub/oidc';
 
     /** @var string[] The only endpoints under the issuer this class calls. */
-    public const ENDPOINTS = ['token.php', 'jwks.php'];
+    public const ENDPOINTS = ['token.php', 'jwks.php', 'discovery.php'];
 
     /** @var string The hub's wwwroot, as the hub itself has it. */
     private string $wwwroot;
@@ -147,8 +150,9 @@ class hub_http {
      * Either way the request goes to the hub connection, never to the
      * host in the URL, with the Host header taken from the wwwroot.
      *
-     * @param string $url {issuer}/token.php or {issuer}/jwks.php, or the
-     *                    same under {wwwroot}/local/nucleushub/oidc, exactly.
+     * @param string $url {issuer}/token.php, {issuer}/jwks.php or
+     *                    {issuer}/discovery.php, or the same under
+     *                    {wwwroot}/local/nucleushub/oidc, exactly.
      * @return string {connect address}/local/nucleushub/oidc/{endpoint}.
      * @throws \moodle_exception For any other URL.
      */
@@ -161,7 +165,7 @@ class hub_http {
             }
         }
         throw new \moodle_exception('huberror', 'local_nucleuscommon', '', 'not a hub sign-in endpoint',
-            'Refused a request to a URL that is not the hub issuer\'s token.php or jwks.php');
+            'Refused a request to a URL that is not the hub issuer\'s token.php, jwks.php or discovery.php');
     }
 
     /**
@@ -189,7 +193,7 @@ class hub_http {
      *
      * Retried once on a transport error.
      *
-     * @param string $url {issuer}/jwks.php.
+     * @param string $url {issuer}/jwks.php or {issuer}/discovery.php.
      * @return array The decoded JSON object.
      * @throws \moodle_exception If the URL isn't allowed, the hub can't be
      *                           reached, doesn't answer 200, or doesn't

@@ -54,5 +54,15 @@ function xmldb_auth_nucleus_upgrade(int $oldversion): bool {
         upgrade_plugin_savepoint(true, 2026092501, 'auth', 'nucleus');
     }
 
+    if ($oldversion < 2026092900) {
+        // Silent sign-in is on by default. Hosted sites have no admin
+        // setting to take the default from.
+        if (get_config('auth_nucleus', 'silentsignin') === false) {
+            set_config('silentsignin', 1, 'auth_nucleus');
+        }
+
+        upgrade_plugin_savepoint(true, 2026092900, 'auth', 'nucleus');
+    }
+
     return true;
 }

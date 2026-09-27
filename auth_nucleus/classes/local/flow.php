@@ -26,6 +26,12 @@ namespace auth_nucleus\local;
  * A session can hold a few pending flows at once (sign-in started in
  * several tabs); each lasts ten minutes.
  *
+ * A silent flow ({@see silent}) is the same, marked `silent`, and its
+ * state starts with {@see SILENT_STATE_PREFIX}. The session's flag is what
+ * callback.php trusts; the prefix only lets it return quietly when the
+ * flow can't be found at all (a browser that doesn't keep cookies), as
+ * there's nothing to sign in then.
+ *
  * @package    auth_nucleus
  * @copyright  2026 David Kelly <contact@dklabs.co.uk>
  * @license    https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -42,6 +48,12 @@ class flow {
 
     /** @var int Seconds a flow stays valid. */
     public const LIFETIME = 600;
+
+    /** @var string Start of a silent flow's state. Not base64url, so no other state has it. */
+    public const SILENT_STATE_PREFIX = 'silent.';
+
+    /** @var string A state as callback.php accepts it: base64url, perhaps with the silent prefix. */
+    public const STATE_PATTERN = '/^(?:silent\.)?[A-Za-z0-9_-]{16,128}$/';
 
     /**
      * base64url without padding (RFC 7636 appendix A).
@@ -76,20 +88,22 @@ class flow {
      * Start a sign-in and remember it in the session.
      *
      * @param string $wantsurl Where to go afterwards. Only a local URL is kept.
-     * @return \stdClass {state, nonce, verifier, challenge, wantsurl, created}
+     * @param bool $silent True for a silent sign-in check (prompt=none).
+     * @return \stdClass {state, nonce, verifier, challenge, wantsurl, created, silent}
      */
-    public static function start(string $wantsurl): \stdClass {
+    public static function start(string $wantsurl, bool $silent = false): \stdClass {
         global $SESSION;
 
         $local = self::local_url($wantsurl);
         $verifier = self::random_token();
         $flow = (object) [
-            'state' => self::random_token(),
+            'state' => ($silent ? self::SILENT_STATE_PREFIX : '') . self::random_token(),
             'nonce' => self::random_token(),
             'verifier' => $verifier,
             'challenge' => self::pkce_challenge($verifier),
             'wantsurl' => $local ? $local->out(false) : '',
             'created' => time(),
+            'silent' => $silent,
         ];
 
         $pending = self::pending();
@@ -123,6 +137,19 @@ class flow {
         }
         $SESSION->{self::SESSIONKEY} = $keep;
         return $found;
+    }
+
+    /**
+     * Does this state belong to a silent flow?
+     *
+     * Only for deciding how to answer when no flow in the session has the
+     * state; a flow that is found says itself whether it is silent.
+     *
+     * @param string $state
+     * @return bool
+     */
+    public static function is_silent_state(string $state): bool {
+        return str_starts_with($state, self::SILENT_STATE_PREFIX);
     }
 
     /**

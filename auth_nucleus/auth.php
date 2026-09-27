@@ -29,6 +29,7 @@ require_once($CFG->libdir . '/authlib.php');
 use auth_nucleus\local\config;
 use auth_nucleus\local\flow;
 use auth_nucleus\local\hub;
+use auth_nucleus\local\silent;
 
 /**
  * Sign in with the federation's hub (ADR-023).
@@ -196,6 +197,26 @@ class auth_plugin_nucleus extends auth_plugin_base {
         }
         $idtoken = $SESSION->{flow::IDTOKENKEY} ?? null;
         $redirect = hub::end_session_url(is_string($idtoken) ? $idtoken : null)->out(false);
+    }
+
+    /**
+     * After anyone signs out here, don't sign them straight back in
+     * silently: stop silent sign-in in this browser until it next signs in
+     * with the hub ({@see silent::remember_signed_out()}).
+     *
+     * With single sign-out the hub session has ended by the time the
+     * browser is back here, so a check would find nobody signed in anyway.
+     * But it can survive: single sign-out off, an account that isn't a hub
+     * account, or the hub asking the person to confirm and their saying
+     * no. require_logout() calls this after replacing (and closing) the
+     * session, so a cookie is used rather than the session.
+     *
+     * @param stdClass $user The user who signed out.
+     */
+    public function postlogout_hook($user) {
+        if (config::is_configured()) {
+            silent::remember_signed_out();
+        }
     }
 
     /**

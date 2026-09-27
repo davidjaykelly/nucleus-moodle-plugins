@@ -13,7 +13,7 @@ They're published so you can see exactly what runs on your Moodle, and so a Mood
 
 ## What you need
 
-- **Moodle 5.1** and PHP 8.2 or later.
+- **Moodle 5.1 or later**, and PHP 8.2 or later.
 - **A Nucleus control plane.** Publishing, sharing and sign-in are all driven by it: the plugins on their own don't form a federation. Nucleus is hosted by DK Labs; running the whole thing yourself is by arrangement.
 
 ## Joining a hosted federation with your own Moodle

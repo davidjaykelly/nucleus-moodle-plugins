@@ -187,8 +187,8 @@ class manifest_checker {
                 'kind' => 'missing_plugins',
                 'detail' => get_string('blocker_plugins_detail', 'local_nucleusspoke',
                     implode(', ', array_map(fn ($m) => 'mod_' . $m, $missing))),
-                // Hosted sites can't install plugins themselves: the code
-                // is part of the image.
+                // Hosted sites can't install plugins from Moodle's admin
+                // pages: a hub admin installs them from the portal.
                 'remediation' => site::is_hosted()
                     ? get_string('blocker_plugins_remedy_hosted', 'local_nucleusspoke')
                     : get_string('blocker_plugins_remedy', 'local_nucleusspoke'),
